@@ -148,8 +148,6 @@ Write-ColorOutput "Step 6: Setting up common environment configurations..." "Gre
 try {
     if (Test-CommandExists "git") {
         Write-ColorOutput "Configuring Git..." "Yellow"
-        git config --global user.name "Patrick Ruddiman"
-        git config --global user.email "paruddim@microsoft.com"
         git config --global core.autocrlf input
     }
 
