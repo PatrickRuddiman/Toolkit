@@ -1,0 +1,188 @@
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  PROJECT_NAME: 'WriteCommit'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Install GitVersion
+      uses: gittools/actions/gitversion/setup@v1.1.1
+      with:
+        versionSpec: '5.x'
+    
+    - name: Determine Version
+      id: gitversion
+      uses: gittools/actions/gitversion/execute@v1.1.1
+    
+    - name: Check if tag exists
+      id: check_tag
+      run: |
+        if git rev-parse "v${{ steps.gitversion.outputs.majorMinorPatch }}" >/dev/null 2>&1; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Skip if tag exists
+      if: steps.check_tag.outputs.exists == 'true'
+      run: |
+        echo "Tag v${{ steps.gitversion.outputs.majorMinorPatch }} already exists. Skipping release."
+        exit 0
+    
+    - name: Update project version
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        sed -i 's/<PackageVersion>.*<\/PackageVersion>/<PackageVersion>${{ steps.gitversion.outputs.nuGetVersion }}<\/PackageVersion>/' ${{ env.PROJECT_NAME }}.csproj
+        sed -i 's/<Version>.*<\/Version>/<Version>${{ steps.gitversion.outputs.assemblySemVer }}<\/Version>/' ${{ env.PROJECT_NAME }}.csproj
+    
+    - name: Restore dependencies
+      if: steps.check_tag.outputs.exists == 'false'
+      run: dotnet restore ${{ env.PROJECT_NAME }}.csproj
+    
+    - name: Build
+      if: steps.check_tag.outputs.exists == 'false'
+      run: dotnet build ${{ env.PROJECT_NAME }}.csproj --no-restore --configuration Release
+    
+    - name: Test
+      if: steps.check_tag.outputs.exists == 'false'
+      run: dotnet test ${{ env.PROJECT_NAME }}.csproj --no-build --configuration Release --verbosity normal
+    
+    - name: Pack
+      if: steps.check_tag.outputs.exists == 'false'
+      run: dotnet pack ${{ env.PROJECT_NAME }}.csproj --no-build --configuration Release --output ./packages
+    
+    - name: Publish Linux x64
+      if: steps.check_tag.outputs.exists == 'false'
+      run: dotnet publish ${{ env.PROJECT_NAME }}.csproj --configuration Release --runtime linux-x64 --self-contained --output ./publish/linux-x64
+    
+    - name: Publish Windows x64
+      if: steps.check_tag.outputs.exists == 'false'
+      run: dotnet publish ${{ env.PROJECT_NAME }}.csproj --configuration Release --runtime win-x64 --self-contained --output ./publish/win-x64
+    
+    - name: Publish macOS x64
+      if: steps.check_tag.outputs.exists == 'false'
+      run: dotnet publish ${{ env.PROJECT_NAME }}.csproj --configuration Release --runtime osx-x64 --self-contained --output ./publish/osx-x64
+    
+    - name: Publish macOS ARM64
+      if: steps.check_tag.outputs.exists == 'false'
+      run: dotnet publish ${{ env.PROJECT_NAME }}.csproj --configuration Release --runtime osx-arm64 --self-contained --output ./publish/osx-arm64
+    
+    - name: Create release archives
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        cd publish
+        tar -czf ../write-commit-linux-x64.tar.gz -C linux-x64 .
+        zip -r ../write-commit-win-x64.zip win-x64/*
+        tar -czf ../write-commit-osx-x64.tar.gz -C osx-x64 .
+        tar -czf ../write-commit-osx-arm64.tar.gz -C osx-arm64 .
+        cd ..
+    
+    - name: Generate changelog
+      if: steps.check_tag.outputs.exists == 'false'
+      id: changelog
+      run: |
+        # Get the previous tag
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        if [ -z "$PREVIOUS_TAG" ]; then
+          echo "## Changes" > CHANGELOG.md
+          echo "Initial release" >> CHANGELOG.md
+        else
+          echo "## Changes since $PREVIOUS_TAG" > CHANGELOG.md
+          git log --pretty=format:"- %s (%an)" $PREVIOUS_TAG..HEAD >> CHANGELOG.md
+        fi
+        
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        cat CHANGELOG.md >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: actions/create-release@v1
+      id: create_release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.gitversion.outputs.majorMinorPatch }}
+        release_name: Release v${{ steps.gitversion.outputs.majorMinorPatch }}
+        body: ${{ steps.changelog.outputs.changelog }}
+        draft: false
+        prerelease: false
+    
+    - name: Upload Linux x64 Release Asset
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./write-commit-linux-x64.tar.gz
+        asset_name: write-commit-linux-x64.tar.gz
+        asset_content_type: application/gzip
+    
+    - name: Upload Windows x64 Release Asset
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./write-commit-win-x64.zip
+        asset_name: write-commit-win-x64.zip
+        asset_content_type: application/zip
+    
+    - name: Upload macOS x64 Release Asset
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./write-commit-osx-x64.tar.gz
+        asset_name: write-commit-osx-x64.tar.gz
+        asset_content_type: application/gzip
+    
+    - name: Upload macOS ARM64 Release Asset
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./write-commit-osx-arm64.tar.gz
+        asset_name: write-commit-osx-arm64.tar.gz
+        asset_content_type: application/gzip
+    
+    - name: Upload NuGet Package
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./packages/WriteCommit.${{ steps.gitversion.outputs.nuGetVersion }}.nupkg
+        asset_name: WriteCommit.${{ steps.gitversion.outputs.nuGetVersion }}.nupkg
+        asset_content_type: application/zip
