@@ -24,13 +24,13 @@ jobs:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     
     - name: Restore dependencies
-      run: dotnet restore ${{ env.PROJECT_NAME }}.csproj
+      run: dotnet restore Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj
     
     - name: Build
-      run: dotnet build ${{ env.PROJECT_NAME }}.csproj --no-restore --configuration Release
+      run: dotnet build Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --no-restore --configuration Release
     
     - name: Test
-      run: dotnet test ${{ env.PROJECT_NAME }}.csproj --no-build --configuration Release --verbosity normal
+      run: dotnet test Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --no-build --configuration Release --verbosity normal
 
   build:
     name: Build
