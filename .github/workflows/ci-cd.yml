@@ -49,13 +49,13 @@ jobs:
         dotnet-version: ${{ env.DOTNET_VERSION }}
     
     - name: Restore dependencies
-      run: dotnet restore ${{ env.PROJECT_NAME }}.csproj
+      run: dotnet restore Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj
     
     - name: Build
-      run: dotnet build ${{ env.PROJECT_NAME }}.csproj --no-restore --configuration Release
+      run: dotnet build Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --no-restore --configuration Release
     
     - name: Publish
-      run: dotnet publish ${{ env.PROJECT_NAME }}.csproj --no-build --configuration Release --output ./publish
+      run: dotnet publish Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --no-build --configuration Release --output ./publish
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -90,21 +90,21 @@ jobs:
       uses: gittools/actions/gitversion/execute@v1.1.1
       with:
         useConfigFile: true
-        configFilePath: GitVersion.yml
+        configFilePath: Tools/Write-Commit/GitVersion.yml
     
     - name: Update project version
       run: |
-        sed -i 's/<PackageVersion>.*<\/PackageVersion>/<PackageVersion>${{ steps.gitversion.outputs.nuGetVersion }}<\/PackageVersion>/' ${{ env.PROJECT_NAME }}.csproj
-        sed -i 's/<Version>.*<\/Version>/<Version>${{ steps.gitversion.outputs.assemblySemVer }}<\/Version>/' ${{ env.PROJECT_NAME }}.csproj
+        sed -i 's/<PackageVersion>.*<\/PackageVersion>/<PackageVersion>${{ steps.gitversion.outputs.nuGetVersion }}<\/PackageVersion>/' Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj
+        sed -i 's/<Version>.*<\/Version>/<Version>${{ steps.gitversion.outputs.assemblySemVer }}<\/Version>/' Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj
     
     - name: Restore dependencies
-      run: dotnet restore ${{ env.PROJECT_NAME }}.csproj
+      run: dotnet restore Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj
     
     - name: Build
-      run: dotnet build ${{ env.PROJECT_NAME }}.csproj --no-restore --configuration Release
+      run: dotnet build Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --no-restore --configuration Release
     
     - name: Pack
-      run: dotnet pack ${{ env.PROJECT_NAME }}.csproj --no-build --configuration Release --output ./packages
+      run: dotnet pack Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --no-build --configuration Release --output ./packages
     
     - name: Upload NuGet package
       uses: actions/upload-artifact@v4
