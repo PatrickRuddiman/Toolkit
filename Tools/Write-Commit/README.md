@@ -90,6 +90,7 @@ write-commit --dry-run --verbose --temperature 0.5
 | `--pattern` | `write_commit_message` | Fabric pattern to use |
 | `--temperature` | `1` | Temperature setting for fabric (0-2) |
 | `--topp` | `1` | Top-p setting for fabric (0-1) |
+| `--model` | `gpt-4o` | AI model to use |
 | `--presence` | `0` | Presence penalty for fabric |
 | `--frequency` | `0` | Frequency penalty for fabric |
 
