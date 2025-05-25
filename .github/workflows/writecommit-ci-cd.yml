@@ -98,45 +98,42 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: ./artifacts
-    
-    - name: Create release archives
+      - name: Create release archives
       run: |
         cd artifacts
         
         # Create Windows release
         cd writecommit-build-windows-latest
-        zip -r ../writecommit-windows-x64-v${{ steps.gitversion.outputs.semVer }}.zip .
+        zip -r ../writecommit-windows-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.zip .
         cd ..
         
         # Create Linux release
         cd writecommit-build-ubuntu-latest
-        tar -czf ../writecommit-linux-x64-v${{ steps.gitversion.outputs.semVer }}.tar.gz .
+        tar -czf ../writecommit-linux-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.tar.gz .
         cd ..
         
         # Create macOS release
         cd writecommit-build-macos-latest
-        tar -czf ../writecommit-macos-x64-v${{ steps.gitversion.outputs.semVer }}.tar.gz .
+        tar -czf ../writecommit-macos-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.tar.gz .
         cd ..
-    
-    - name: Create GitHub Release
+      - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v${{ steps.gitversion.outputs.semVer }}
-        name: WriteCommit v${{ steps.gitversion.outputs.semVer }}
+        tag_name: v${{ steps.gitversion.outputs.majorMinorPatch }}
+        name: WriteCommit v${{ steps.gitversion.outputs.majorMinorPatch }}
         body: |
-          ## WriteCommit v${{ steps.gitversion.outputs.semVer }}
+          ## WriteCommit v${{ steps.gitversion.outputs.majorMinorPatch }}
           
           ### Downloads
-          - **Windows (x64)**: writecommit-windows-x64-v${{ steps.gitversion.outputs.semVer }}.zip
-          - **Linux (x64)**: writecommit-linux-x64-v${{ steps.gitversion.outputs.semVer }}.tar.gz
-          - **macOS (x64)**: writecommit-macos-x64-v${{ steps.gitversion.outputs.semVer }}.tar.gz
+          - **Windows (x64)**: writecommit-windows-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.zip
+          - **Linux (x64)**: writecommit-linux-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.tar.gz
+          - **macOS (x64)**: writecommit-macos-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.tar.gz
           
           ### Changes
-          This release includes builds for Windows, Linux, and macOS platforms.
-        files: |
-          artifacts/writecommit-windows-x64-v${{ steps.gitversion.outputs.semVer }}.zip
-          artifacts/writecommit-linux-x64-v${{ steps.gitversion.outputs.semVer }}.tar.gz
-          artifacts/writecommit-macos-x64-v${{ steps.gitversion.outputs.semVer }}.tar.gz
+          This release includes builds for Windows, Linux, and macOS platforms.        files: |
+          artifacts/writecommit-windows-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.zip
+          artifacts/writecommit-linux-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.tar.gz
+          artifacts/writecommit-macos-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.tar.gz
         draft: false
         prerelease: false
         generate_release_notes: true
