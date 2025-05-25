@@ -58,40 +58,40 @@ jobs:
     - name: Update project version
       if: steps.check_tag.outputs.exists == 'false'
       run: |
-        sed -i 's/<PackageVersion>.*<\/PackageVersion>/<PackageVersion>${{ steps.gitversion.outputs.nuGetVersion }}<\/PackageVersion>/' Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj
-        sed -i 's/<Version>.*<\/Version>/<Version>${{ steps.gitversion.outputs.assemblySemVer }}<\/Version>/' Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj
+        sed -i 's/<PackageVersion>.*<\/PackageVersion>/<PackageVersion>${{ steps.gitversion.outputs.nuGetVersion }}<\/PackageVersion>/' Tools/Write-Commit/WriteCommit.csproj
+        sed -i 's/<Version>.*<\/Version>/<Version>${{ steps.gitversion.outputs.assemblySemVer }}<\/Version>/' Tools/Write-Commit/WriteCommit.csproj
     
     - name: Restore dependencies
       if: steps.check_tag.outputs.exists == 'false'
-      run: dotnet restore Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj
+      run: dotnet restore Tools/Write-Commit/WriteCommit.csproj
     
     - name: Build
       if: steps.check_tag.outputs.exists == 'false'
-      run: dotnet build Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --no-restore --configuration Release
+      run: dotnet build Tools/Write-Commit/WriteCommit.csproj --no-restore --configuration Release
     
     - name: Test
       if: steps.check_tag.outputs.exists == 'false'
-      run: dotnet test Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --no-build --configuration Release --verbosity normal
+      run: dotnet test Tools/Write-Commit/WriteCommit.csproj --no-build --configuration Release --verbosity normal
     
     - name: Pack
       if: steps.check_tag.outputs.exists == 'false'
-      run: dotnet pack Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --no-build --configuration Release --output ./packages
+      run: dotnet pack Tools/Write-Commit/WriteCommit.csproj --no-build --configuration Release --output ./packages
     
     - name: Publish Linux x64
       if: steps.check_tag.outputs.exists == 'false'
-      run: dotnet publish Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --configuration Release --runtime linux-x64 --self-contained --output ./publish/linux-x64
+      run: dotnet publish Tools/Write-Commit/WriteCommit.csproj --configuration Release --runtime linux-x64 --self-contained --output ./publish/linux-x64
     
     - name: Publish Windows x64
       if: steps.check_tag.outputs.exists == 'false'
-      run: dotnet publish Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --configuration Release --runtime win-x64 --self-contained --output ./publish/win-x64
+      run: dotnet publish Tools/Write-Commit/WriteCommit.csproj --configuration Release --runtime win-x64 --self-contained --output ./publish/win-x64
     
     - name: Publish macOS x64
       if: steps.check_tag.outputs.exists == 'false'
-      run: dotnet publish Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --configuration Release --runtime osx-x64 --self-contained --output ./publish/osx-x64
+      run: dotnet publish Tools/Write-Commit/WriteCommit.csproj --configuration Release --runtime osx-x64 --self-contained --output ./publish/osx-x64
     
     - name: Publish macOS ARM64
       if: steps.check_tag.outputs.exists == 'false'
-      run: dotnet publish Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --configuration Release --runtime osx-arm64 --self-contained --output ./publish/osx-arm64
+      run: dotnet publish Tools/Write-Commit/WriteCommit.csproj --configuration Release --runtime osx-arm64 --self-contained --output ./publish/osx-arm64
     
     - name: Create release archives
       if: steps.check_tag.outputs.exists == 'false'
