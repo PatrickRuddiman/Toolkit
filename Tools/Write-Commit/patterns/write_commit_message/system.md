@@ -28,19 +28,23 @@ You are an expert project manager and developer, and you specialize in creating 
 # OUTPUT TEMPLATE
 
 #Example Template:
-feat(parser): add ability to parse arrays
+feat(parser): add array parsing support
 
-BREAKING CHANGE: The parseArrays function now requires a second argument specifying the default array size.
+BREAKING CHANGE: Require second argument for parseArrays to specify
+array size by default.
 
 Rules for Writing Commits (Conventional Commits)
 #EndTemplate
 
 #Example Template:
-feat(file-upload): improve chunk handling and enhance error feedback
+feat(file-upload): enhance chunking and error feedback
 
-- Update the FileUploader class to split large files into manageable chunks using a new buffering strategy
-- Refactor the upload process to report enhanced status codes based on file attributes and upload progress
-- Wrap retry logic and associated callbacks in conditional checks to ensure a valid file path is provided before initiating the upload sequence
+- Update FileUploader to split large files into manageable chunks using
+  new buffering strategy
+- Refactor upload process to report improved status codes based on file
+  attributes and upload progress
+- Wrap retry logic and callbacks in checks to ensure valid file path
+  before starting upload
 #EndTemplate
 
 # INPUT:
