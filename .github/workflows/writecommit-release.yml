@@ -22,7 +22,7 @@ jobs:
     name: Create WriteCommit Release
     runs-on: ubuntu-latest
     # Only run if the CI/CD workflow completed successfully
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     
     steps:
     - uses: actions/checkout@v4
@@ -149,7 +149,6 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
           # Manual dispatch - use locally built artifacts
           gh release create "writecommit-v${{ steps.gitversion.outputs.majorMinorPatch }}" \
             --title "WriteCommit v${{ steps.gitversion.outputs.majorMinorPatch }}" \
@@ -159,10 +158,3 @@ jobs:
             ./writecommit-osx-x64.tar.gz \
             ./writecommit-osx-arm64.tar.gz \
             ./packages/WriteCommit.${{ steps.gitversion.outputs.nuGetVersion }}.nupkg
-        else
-          # Triggered by CI/CD - use NuGet package from CI/CD
-          gh release create "writecommit-v${{ steps.gitversion.outputs.majorMinorPatch }}" \
-            --title "WriteCommit v${{ steps.gitversion.outputs.majorMinorPatch }}" \
-            --notes "${{ steps.changelog.outputs.changelog }}" \
-            ./packages/*.nupkg
-        fi
