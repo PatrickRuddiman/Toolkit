@@ -123,9 +123,9 @@ public class FabricService
     )
     {
         // Escape quotes in changes for command line
-        var escapedChanges = chunk.Content.Replace("\"", "");
-        var fabricArgs =
-            $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} \"{escapedChanges}\"";
+        var escapedChanges = EscapeStringForCommandLine(chunk.Content);
+
+        string fabricArgs = $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} \"{escapedChanges}\"";
 
         if (verbose)
         {
@@ -154,14 +154,9 @@ public class FabricService
     )
     {
         // Create a summary prompt for combining multiple chunk messages
-        var combinedPrompt =
-            "Combine the following individual commit message components into a single, coherent commit message. "
-            + "Focus on the overall change and maintain conventional commit format:\n\n"
-            + string.Join("\n\n", chunkMessages);
 
-        var escapedPrompt = combinedPrompt.Replace("\"", "\\\"");
-        var fabricArgs =
-            $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} \"{escapedPrompt}\"";
+        var escapedPrompt = EscapeStringForCommandLine(string.Join("\n\n", chunkMessages));
+        string fabricArgs = $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} \"{escapedPrompt}\"";
 
         if (verbose)
         {
@@ -182,6 +177,36 @@ public class FabricService
         }
 
         return result.Output.Trim();
+    }
+
+    /// <summary>
+    /// Escapes a string for safe use in command line arguments
+    /// </summary>
+    /// <param name="input">The input string to escape</param>
+    /// <returns>A properly escaped string safe for command line usage</returns>
+    private string EscapeStringForCommandLine(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return string.Empty;
+        }
+
+        return input
+            .Replace("\"", "\\\"")
+            .Replace("\r", "")
+            .Replace("\n", " ")
+            .Replace("`", "\\`")
+            .Replace("$", "\\$")
+            .Replace(";", "\\;")
+            .Replace("&", "\\&")
+            .Replace("|", "\\|")
+            .Replace("<", "\\<")
+            .Replace(">", "\\>")
+            .Replace("!", "\\!")
+            .Replace("(", "\\(")
+            .Replace(")", "\\)")
+            .Replace("{", "\\{")
+            .Replace("}", "\\}");
     }
 
     private async Task<(int ExitCode, string Output, string Error)> RunCommandAsync(
