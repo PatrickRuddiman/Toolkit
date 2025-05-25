@@ -1,7 +1,7 @@
 using System.CommandLine;
 using Microsoft.Extensions.Logging;
-using WriteCommit.Services;
 using WriteCommit.Constants;
+using WriteCommit.Services;
 
 namespace WriteCommit;
 
@@ -36,6 +36,10 @@ class Program
             () => "gpt-4o",
             "AI model to use (default: gpt-4o)"
         );
+        var reinstallPatternsOption = new Option<bool>(
+            "--reinstall-patterns",
+            "Force reinstallation of all patterns"
+        );
 
         var rootCommand = new RootCommand("Generate AI-powered commit messages using fabric")
         {
@@ -47,6 +51,7 @@ class Program
             presenceOption,
             frequencyOption,
             modelOption,
+            reinstallPatternsOption,
         };
 
         rootCommand.SetHandler(
@@ -63,6 +68,13 @@ class Program
             {
                 try
                 {
+                    // Check if patterns should be reinstalled
+                    bool reinstallPatterns = args.Contains("--reinstall-patterns");
+
+                    // Ensure patterns are installed before proceeding
+                    var patternService = new PatternService(verbose);
+                    await patternService.EnsurePatternsInstalledAsync(reinstallPatterns);
+
                     await GenerateCommitMessage(
                         dryRun,
                         verbose,

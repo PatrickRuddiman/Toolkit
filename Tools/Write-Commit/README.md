@@ -60,8 +60,11 @@ write-commit --verbose
 # Custom AI parameters
 write-commit --temperature 0.7 --topp 0.9 --pattern custom_pattern
 
+# Force reinstall all patterns
+write-commit --reinstall-patterns
+
 # Combine multiple options
-write-commit --dry-run --verbose --temperature 0.5
+write-commit --dry-run --verbose --temperature 0.5 --reinstall-patterns
 ```
 
 ## ⚙️ Configuration Options
@@ -76,20 +79,22 @@ write-commit --dry-run --verbose --temperature 0.5
 | `--model` | `gpt-4o` | AI model to use |
 | `--presence` | `0` | Presence penalty (-2 to 2) |
 | `--frequency` | `0` | Frequency penalty (-2 to 2) |
+| `--reinstall-patterns` | `false` | Force reinstallation of all patterns |
 
 ## 🔧 How It Works
 
-1. **Validates environment** - Checks for git repository and fabric installation
-2. **Analyzes changes** - Processes your staged git diff
-3. **Generates message** - Uses fabric AI to create meaningful commit message
-4. **Commits changes** - Applies the generated message (unless `--dry-run`)
+1. **Installs patterns** - Automatically installs/updates fabric patterns on first run
+2. **Validates environment** - Checks for git repository and fabric installation
+3. **Analyzes changes** - Processes your staged git diff using semantic chunking
+4. **Generates message** - Uses fabric AI to create meaningful commit message
+5. **Commits changes** - Applies the generated message (unless `--dry-run`)
 
 ## 🛠️ Development
 
 ### Run from Source
 ```bash
-git clone https://github.com/yourusername/WriteCommit.git
-cd WriteCommit
+git clone https://github.com/PatrickRuddiman/Toolkit
+cd Tools/Write-Commit
 dotnet build
 dotnet run -- --help
 ```
