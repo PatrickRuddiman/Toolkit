@@ -69,22 +69,18 @@ jobs:
         name: writecommit-build-${{ matrix.os }}
         path: ./publish
         retention-days: 30
-
-  pack:
-    name: Pack WriteCommit NuGet
+  release:
+    name: Create GitHub Release
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0  # Required for GitVersion
-    
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
     
     - name: Install GitVersion
       uses: gittools/actions/gitversion/setup@v1.1.1
@@ -98,23 +94,49 @@ jobs:
         useConfigFile: true
         configFilePath: Tools/Write-Commit/GitVersion.yml
     
-    - name: Update project version
-      run: |
-        sed -i 's/<PackageVersion>.*<\/PackageVersion>/<PackageVersion>${{ steps.gitversion.outputs.nuGetVersion }}<\/PackageVersion>/' Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj
-        sed -i 's/<Version>.*<\/Version>/<Version>${{ steps.gitversion.outputs.assemblySemVer }}<\/Version>/' Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj
-    
-    - name: Restore dependencies
-      run: dotnet restore Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj
-    
-    - name: Build
-      run: dotnet build Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --no-restore --configuration Release
-    
-    - name: Pack
-      run: dotnet pack Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --no-build --configuration Release --output ./packages
-    
-    - name: Upload NuGet package
-      uses: actions/upload-artifact@v4
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v4
       with:
-        name: writecommit-nuget-package
-        path: ./packages/*.nupkg
-        retention-days: 90
+        path: ./artifacts
+    
+    - name: Create release archives
+      run: |
+        cd artifacts
+        
+        # Create Windows release
+        cd writecommit-build-windows-latest
+        zip -r ../writecommit-windows-x64-v${{ steps.gitversion.outputs.semVer }}.zip .
+        cd ..
+        
+        # Create Linux release
+        cd writecommit-build-ubuntu-latest
+        tar -czf ../writecommit-linux-x64-v${{ steps.gitversion.outputs.semVer }}.tar.gz .
+        cd ..
+        
+        # Create macOS release
+        cd writecommit-build-macos-latest
+        tar -czf ../writecommit-macos-x64-v${{ steps.gitversion.outputs.semVer }}.tar.gz .
+        cd ..
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.gitversion.outputs.semVer }}
+        name: WriteCommit v${{ steps.gitversion.outputs.semVer }}
+        body: |
+          ## WriteCommit v${{ steps.gitversion.outputs.semVer }}
+          
+          ### Downloads
+          - **Windows (x64)**: writecommit-windows-x64-v${{ steps.gitversion.outputs.semVer }}.zip
+          - **Linux (x64)**: writecommit-linux-x64-v${{ steps.gitversion.outputs.semVer }}.tar.gz
+          - **macOS (x64)**: writecommit-macos-x64-v${{ steps.gitversion.outputs.semVer }}.tar.gz
+          
+          ### Changes
+          This release includes builds for Windows, Linux, and macOS platforms.
+        files: |
+          artifacts/writecommit-windows-x64-v${{ steps.gitversion.outputs.semVer }}.zip
+          artifacts/writecommit-linux-x64-v${{ steps.gitversion.outputs.semVer }}.tar.gz
+          artifacts/writecommit-macos-x64-v${{ steps.gitversion.outputs.semVer }}.tar.gz
+        draft: false
+        prerelease: false
+        generate_release_notes: true
