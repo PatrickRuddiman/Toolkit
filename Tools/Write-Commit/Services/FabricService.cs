@@ -206,7 +206,9 @@ public class FabricService
             .Replace("(", "\\(")
             .Replace(")", "\\)")
             .Replace("{", "\\{")
-            .Replace("}", "\\}");
+            .Replace("}", "\\}")
+            .Replace("-", "\\-")
+            .Replace("/", "\\/");
     }
 
     private async Task<(int ExitCode, string Output, string Error)> RunCommandAsync(
