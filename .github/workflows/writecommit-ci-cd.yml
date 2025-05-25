@@ -98,7 +98,8 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: ./artifacts
-      - name: Create release archives
+    
+    - name: Create release archives
       run: |
         cd artifacts
         
@@ -116,7 +117,8 @@ jobs:
         cd writecommit-build-macos-latest
         tar -czf ../writecommit-macos-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.tar.gz .
         cd ..
-      - name: Create GitHub Release
+    
+    - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: v${{ steps.gitversion.outputs.majorMinorPatch }}
