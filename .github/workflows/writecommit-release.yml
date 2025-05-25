@@ -1,0 +1,168 @@
+name: WriteCommit Release
+
+on:
+  workflow_run:
+    workflows: ["WriteCommit CI/CD"]
+    types:
+      - completed
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  PROJECT_NAME: 'WriteCommit'
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Create WriteCommit Release
+    runs-on: ubuntu-latest
+    # Only run if the CI/CD workflow completed successfully
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Download NuGet package from CI/CD
+      if: github.event_name == 'workflow_run'
+      uses: actions/download-artifact@v4
+      with:
+        name: writecommit-nuget-package
+        path: ./packages
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ github.event.workflow_run.id }}
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Install GitVersion
+      uses: gittools/actions/gitversion/setup@v1.1.1
+      with:
+        versionSpec: '5.x'
+    
+    - name: Determine Version
+      id: gitversion
+      uses: gittools/actions/gitversion/execute@v1.1.1
+      with:
+        useConfigFile: true
+        configFilePath: Tools/Write-Commit/GitVersion.yml
+    
+    - name: Check if tag exists
+      id: check_tag
+      run: |
+        if git rev-parse "writecommit-v${{ steps.gitversion.outputs.majorMinorPatch }}" >/dev/null 2>&1; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Skip if tag exists
+      if: steps.check_tag.outputs.exists == 'true'
+      run: |
+        echo "Tag writecommit-v${{ steps.gitversion.outputs.majorMinorPatch }} already exists. Skipping release."
+        exit 0
+    
+    - name: Update project version
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        sed -i 's/<PackageVersion>.*<\/PackageVersion>/<PackageVersion>${{ steps.gitversion.outputs.nuGetVersion }}<\/PackageVersion>/' Tools/Write-Commit/WriteCommit.csproj
+        sed -i 's/<Version>.*<\/Version>/<Version>${{ steps.gitversion.outputs.assemblySemVer }}<\/Version>/' Tools/Write-Commit/WriteCommit.csproj
+    
+    - name: Restore dependencies
+      if: steps.check_tag.outputs.exists == 'false' && github.event_name == 'workflow_dispatch'
+      run: dotnet restore Tools/Write-Commit/WriteCommit.csproj
+    
+    - name: Build
+      if: steps.check_tag.outputs.exists == 'false' && github.event_name == 'workflow_dispatch'
+      run: dotnet build Tools/Write-Commit/WriteCommit.csproj --no-restore --configuration Release
+    
+    - name: Test
+      if: steps.check_tag.outputs.exists == 'false' && github.event_name == 'workflow_dispatch'
+      run: dotnet test Tools/Write-Commit/WriteCommit.csproj --no-build --configuration Release --verbosity normal
+    
+    - name: Publish Linux x64
+      if: steps.check_tag.outputs.exists == 'false' && github.event_name == 'workflow_dispatch'
+      run: dotnet publish Tools/Write-Commit/WriteCommit.csproj --configuration Release --runtime linux-x64 --self-contained --output ./publish/linux-x64
+    
+    - name: Publish Windows x64
+      if: steps.check_tag.outputs.exists == 'false' && github.event_name == 'workflow_dispatch'
+      run: dotnet publish Tools/Write-Commit/WriteCommit.csproj --configuration Release --runtime win-x64 --self-contained --output ./publish/win-x64
+    
+    - name: Publish macOS x64
+      if: steps.check_tag.outputs.exists == 'false' && github.event_name == 'workflow_dispatch'
+      run: dotnet publish Tools/Write-Commit/WriteCommit.csproj --configuration Release --runtime osx-x64 --self-contained --output ./publish/osx-x64
+    
+    - name: Publish macOS ARM64
+      if: steps.check_tag.outputs.exists == 'false' && github.event_name == 'workflow_dispatch'
+      run: dotnet publish Tools/Write-Commit/WriteCommit.csproj --configuration Release --runtime osx-arm64 --self-contained --output ./publish/osx-arm64
+    
+    - name: Create NuGet Package
+      if: steps.check_tag.outputs.exists == 'false' && github.event_name == 'workflow_dispatch'
+      run: |
+        dotnet pack Tools/Write-Commit/WriteCommit.csproj --configuration Release --no-build --output ./packages
+    
+    - name: Create release archives
+      if: steps.check_tag.outputs.exists == 'false' && github.event_name == 'workflow_dispatch'
+      run: |
+        cd publish
+        tar -czf ../writecommit-linux-x64.tar.gz -C linux-x64 .
+        zip -r ../writecommit-win-x64.zip win-x64/*
+        tar -czf ../writecommit-osx-x64.tar.gz -C osx-x64 .
+        tar -czf ../writecommit-osx-arm64.tar.gz -C osx-arm64 .
+        cd ..
+    
+    - name: Generate changelog
+      if: steps.check_tag.outputs.exists == 'false'
+      id: changelog
+      run: |
+        # Get the previous WriteCommit tag
+        PREVIOUS_TAG=$(git tag -l "writecommit-v*" --sort=-version:refname | head -n 1)
+        
+        if [ -z "$PREVIOUS_TAG" ]; then
+          echo "## WriteCommit Changes" > CHANGELOG.md
+          echo "Initial WriteCommit release" >> CHANGELOG.md
+        else
+          echo "## WriteCommit Changes since $PREVIOUS_TAG" > CHANGELOG.md
+          git log --pretty=format:"- %s (%an)" $PREVIOUS_TAG..HEAD --grep="WriteCommit\|write-commit" >> CHANGELOG.md
+          # If no WriteCommit-specific commits found, include all commits in Tools/Write-Commit
+          if [ ! -s CHANGELOG.md ] || [ $(wc -l < CHANGELOG.md) -eq 1 ]; then
+            echo "## WriteCommit Changes since $PREVIOUS_TAG" > CHANGELOG.md
+            git log --pretty=format:"- %s (%an)" $PREVIOUS_TAG..HEAD -- Tools/Write-Commit/ >> CHANGELOG.md
+          fi
+        fi
+        
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        cat CHANGELOG.md >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: Create WriteCommit Release
+      if: steps.check_tag.outputs.exists == 'false'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          # Manual dispatch - use locally built artifacts
+          gh release create "writecommit-v${{ steps.gitversion.outputs.majorMinorPatch }}" \
+            --title "WriteCommit v${{ steps.gitversion.outputs.majorMinorPatch }}" \
+            --notes "${{ steps.changelog.outputs.changelog }}" \
+            ./writecommit-linux-x64.tar.gz \
+            ./writecommit-win-x64.zip \
+            ./writecommit-osx-x64.tar.gz \
+            ./writecommit-osx-arm64.tar.gz \
+            ./packages/WriteCommit.${{ steps.gitversion.outputs.nuGetVersion }}.nupkg
+        else
+          # Triggered by CI/CD - use NuGet package from CI/CD
+          gh release create "writecommit-v${{ steps.gitversion.outputs.majorMinorPatch }}" \
+            --title "WriteCommit v${{ steps.gitversion.outputs.majorMinorPatch }}" \
+            --notes "${{ steps.changelog.outputs.changelog }}" \
+            ./packages/*.nupkg
+        fi

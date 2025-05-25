@@ -38,32 +38,52 @@ public class FabricService
             var commitMessages = new List<string>();
             if (verbose)
             {
-                Console.WriteLine($"Processing {chunks.Count} chunks individually...");
+                Console.WriteLine($"Processing {chunks.Count} chunks in parallel...");
             }
 
-            for (int i = 0; i < chunks.Count; i++)
-            {
-                if (verbose)
-                {
-                    Console.WriteLine(
-                        $"Processing chunk {i + 1}/{chunks.Count}: {chunks[i].FileName}"
-                    );
-                }
+            // Create tasks for parallel processing
+            var chunkTasks = chunks
+                .Select(
+                    async (chunk, index) =>
+                    {
+                        if (verbose)
+                        {
+                            Console.WriteLine(
+                                $"Processing chunk {index + 1}/{chunks.Count}: {chunk.FileName}"
+                            );
+                        }
 
-                var chunkMessage = await ProcessSingleChunkAsync(
-                    chunks[i],
-                    FabricPatterns.ChunkPattern,
-                    temperature,
-                    topP,
-                    presence,
-                    frequency,
-                    model,
-                    verbose
-                );
-                if (!string.IsNullOrWhiteSpace(chunkMessage))
+                        var chunkMessage = await ProcessSingleChunkAsync(
+                            chunk,
+                            FabricPatterns.ChunkPattern,
+                            temperature,
+                            topP,
+                            presence,
+                            frequency,
+                            model,
+                            verbose
+                        );
+
+                        return new
+                        {
+                            Index = index,
+                            FileName = chunk.FileName,
+                            Message = chunkMessage,
+                        };
+                    }
+                )
+                .ToArray();
+
+            // Wait for all tasks to complete
+            var results = await Task.WhenAll(chunkTasks);
+
+            // Process results in order
+            foreach (var result in results.OrderBy(r => r.Index))
+            {
+                if (!string.IsNullOrWhiteSpace(result.Message))
                 {
                     commitMessages.Add(
-                        $"Chunk {i + 1} ({chunks[i].FileName}): {chunkMessage.Trim()}"
+                        $"Chunk {result.Index + 1} ({result.FileName}): {result.Message.Trim()}"
                     );
                 }
             }

@@ -1,10 +1,16 @@
-name: CI/CD
+name: WriteCommit CI/CD
 
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - 'Tools/Write-Commit/**'
+      - '.github/workflows/writecommit-*.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'Tools/Write-Commit/**'
+      - '.github/workflows/writecommit-*.yml'
 
 env:
   DOTNET_VERSION: '8.0.x'
@@ -12,7 +18,7 @@ env:
 
 jobs:
   test:
-    name: Test
+    name: Test WriteCommit
     runs-on: ubuntu-latest
     
     steps:
@@ -33,7 +39,7 @@ jobs:
       run: dotnet test Tools/Write-Commit/${{ env.PROJECT_NAME }}.csproj --no-build --configuration Release --verbosity normal
 
   build:
-    name: Build
+    name: Build WriteCommit
     needs: test
     runs-on: ${{ matrix.os }}
     strategy:
@@ -60,12 +66,12 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: build-${{ matrix.os }}
+        name: writecommit-build-${{ matrix.os }}
         path: ./publish
         retention-days: 30
 
   pack:
-    name: Pack NuGet
+    name: Pack WriteCommit NuGet
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
@@ -109,6 +115,6 @@ jobs:
     - name: Upload NuGet package
       uses: actions/upload-artifact@v4
       with:
-        name: nuget-package
+        name: writecommit-nuget-package
         path: ./packages/*.nupkg
         retention-days: 90

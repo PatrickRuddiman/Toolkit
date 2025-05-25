@@ -21,21 +21,45 @@ A cross-platform .NET tool that generates AI-powered commit messages using [fabr
 
 ### Installation
 
-**Install as global .NET tool:**
+**Quick install (latest release):**
 ```bash
-git clone https://github.com/yourusername/WriteCommit.git
-cd WriteCommit
-dotnet pack --configuration Release --output packages
-dotnet tool install -g WriteCommit --add-source packages
+# Auto-detect platform (Linux/macOS)
+curl -sSL https://raw.githubusercontent.com/PatrickRuddiman/Toolkit/main/Tools/Write-Commit/install-universal.sh | bash
+
+# Specific architecture (Linux/macOS)
+curl -sSL https://raw.githubusercontent.com/PatrickRuddiman/Toolkit/main/Tools/Write-Commit/install-universal.sh | bash -s -- --arch linux-arm64
+
+# Windows - One-liner install (PowerShell)
+iex (irm https://raw.githubusercontent.com/PatrickRuddiman/Toolkit/main/Tools/Write-Commit/install-web.ps1)
 ```
 
-**Or use installation scripts:**
+**Supported architectures:**
+- `linux-x64` - Linux 64-bit (Intel/AMD)
+- `linux-arm64` - Linux ARM64 (Apple Silicon, Raspberry Pi, etc.)
+- `osx-x64` - macOS Intel
+- `osx-arm64` - macOS Apple Silicon
+- `win-x64` - Windows 64-bit
+
+**Build from source:**
 ```bash
 # Windows
 .\install.ps1
 
 # Linux/macOS  
 chmod +x install.sh && ./install.sh
+```
+
+**Manual installation:**
+```bash
+git clone https://github.com/yourusername/WriteCommit.git
+cd WriteCommit
+
+# Publish for your platform
+dotnet publish --configuration Release --runtime win-x64 --self-contained true --output publish/win-x64  # Windows
+dotnet publish --configuration Release --runtime linux-x64 --self-contained true --output publish/linux-x64  # Linux
+dotnet publish --configuration Release --runtime osx-x64 --self-contained true --output publish/osx-x64  # macOS
+
+# Copy to your local bin directory and add to PATH
 ```
 
 ### Basic Usage
@@ -45,7 +69,7 @@ chmod +x install.sh && ./install.sh
 git add .
 
 # Generate and commit with AI-powered message
-write-commit
+WriteCommit
 ```
 
 ## 🎯 Advanced Usage

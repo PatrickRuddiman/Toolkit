@@ -1,35 +1,47 @@
 #!/bin/bash
-# Installation script for WriteCommit tool
+# Installation script for WriteCommit tool (Linux/macOS)
 
-echo "Building WriteCommit..."
-dotnet build WriteCommit.csproj --configuration Release
+runtime="linux-x64"
+exeName="WriteCommit"
+
+echo "Publishing WriteCommit for $runtime..."
+dotnet publish WriteCommit.csproj --configuration Release --runtime $runtime --self-contained true --output "publish/$runtime"
 
 if [ $? -eq 0 ]; then
-    echo "Build successful!"
+    echo "Publish successful!"
     
-    echo "Packing as NuGet tool..."
-    dotnet pack WriteCommit.csproj --configuration Release --output ./packages
+    # Create a directory in user's local bin if it doesn't exist
+    localBin="$HOME/.local/bin"
+    
+    if [ ! -d "$localBin" ]; then
+        echo "Creating local bin directory: $localBin"
+        mkdir -p "$localBin"
+    fi
+    
+    # Copy the executable to local bin
+    sourcePath="publish/$runtime/$exeName"
+    targetPath="$localBin/$exeName"
+    
+    echo "Installing WriteCommit to $targetPath..."
+    cp "$sourcePath" "$targetPath"
+    chmod +x "$targetPath"
     
     if [ $? -eq 0 ]; then
-        echo "Installing as global tool..."
-        dotnet tool uninstall -g WriteCommit 2>/dev/null
-        dotnet tool install -g WriteCommit --add-source ./packages
+        echo "✅ WriteCommit installed successfully!"
         
-        if [ $? -eq 0 ]; then
-            echo "✅ WriteCommit installed successfully!"
-            echo "You can now use 'write-commit' command from anywhere."
-            echo ""
-            echo "Example usage:"
-            echo "  git add ."
-            echo "  write-commit"
-            echo "  write-commit --dry-run"
-            echo "  write-commit --verbose"
-        else
-            echo "❌ Failed to install as global tool"
-        fi
+        echo "Note: Make sure $localBin is in your PATH."
+        echo "Add this line to your ~/.bashrc or ~/.zshrc:"
+        echo "  export PATH=\"$localBin:\$PATH\""
+        
+        echo ""
+        echo "Example usage:"
+        echo "  git add ."
+        echo "  WriteCommit"
+        echo "  WriteCommit --dry-run"
+        echo "  WriteCommit --verbose"
     else
-        echo "❌ Failed to pack"
+        echo "❌ Failed to copy executable to $targetPath"
     fi
 else
-    echo "❌ Build failed"
+    echo "❌ Publish failed"
 fi

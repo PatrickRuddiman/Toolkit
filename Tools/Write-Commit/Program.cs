@@ -33,8 +33,8 @@ class Program
         );
         var modelOption = new Option<string>(
             "--model",
-            () => "gpt-4o",
-            "AI model to use (default: gpt-4o)"
+            () => "gpt-4.1-nano",
+            "AI model to use (default: gpt-4.1-nano)"
         );
         var reinstallPatternsOption = new Option<bool>(
             "--reinstall-patterns",
