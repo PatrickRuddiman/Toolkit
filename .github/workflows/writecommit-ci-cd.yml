@@ -104,19 +104,20 @@ jobs:
         cd artifacts
         
         # Create Windows release
-        cd writecommit-build-windows-latest
+        pushd writecommit-build-windows-latest
         zip -r ../writecommit-windows-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.zip .
-        cd ..
+        popd
         
         # Create Linux release
-        cd writecommit-build-ubuntu-latest
+        pushd writecommit-build-ubuntu-latest
         tar -czf ../writecommit-linux-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.tar.gz .
-        cd ..
+        popd
         
         # Create macOS release
-        cd writecommit-build-macos-latest
+        pushd writecommit-build-macos-latest
         tar -czf ../writecommit-macos-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.tar.gz .
-        cd ..
+        popd
+
     
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
@@ -132,7 +133,8 @@ jobs:
           - **macOS (x64)**: writecommit-macos-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.tar.gz
           
           ### Changes
-          This release includes builds for Windows, Linux, and macOS platforms.        files: |
+          This release includes builds for Windows, Linux, and macOS platforms.
+        files: |
           artifacts/writecommit-windows-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.zip
           artifacts/writecommit-linux-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.tar.gz
           artifacts/writecommit-macos-x64-v${{ steps.gitversion.outputs.majorMinorPatch }}.tar.gz
