@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using WriteCommit.Constants;
 using WriteCommit.Models;
 
 namespace WriteCommit.Services;
@@ -51,7 +52,7 @@ public class FabricService
 
                 var chunkMessage = await ProcessSingleChunkAsync(
                     chunks[i],
-                    "summarize",
+                    FabricPatterns.ChunkPattern,
                     temperature,
                     topP,
                     presence,

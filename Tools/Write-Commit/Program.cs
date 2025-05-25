@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Microsoft.Extensions.Logging;
 using WriteCommit.Services;
+using WriteCommit.Constants;
 
 namespace WriteCommit;
 
@@ -15,7 +16,7 @@ class Program
         var verboseOption = new Option<bool>("--verbose", "Show detailed output");
         var patternOption = new Option<string>(
             "--pattern",
-            () => "write_commit_message",
+            () => FabricPatterns.CommitPattern,
             "Fabric pattern to use"
         );
         var temperatureOption = new Option<int>(
