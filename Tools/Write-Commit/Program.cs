@@ -49,7 +49,16 @@ class Program
         };
 
         rootCommand.SetHandler(
-            async (dryRun, verbose, pattern, temperature, topP, presence, frequency, model) =>
+            async (
+                bool dryRun,
+                bool verbose,
+                string pattern,
+                int temperature,
+                int topP,
+                int presence,
+                int frequency,
+                string model
+            ) =>
             {
                 try
                 {
@@ -96,6 +105,23 @@ class Program
     {
         var gitService = new GitService();
         var fabricService = new FabricService();
+
+        // Ensure the pattern is installed in fabric patterns directory
+        try
+        {
+            await PatternInstaller.EnsurePatternInstalledAsync(pattern, verbose);
+        }
+        catch (Exception ex)
+        {
+            if (verbose)
+            {
+                Console.WriteLine($"Warning: Could not install pattern '{pattern}': {ex.Message}");
+                Console.WriteLine(
+                    "Proceeding with assumption that pattern is already available in fabric..."
+                );
+            }
+            // Continue anyway - the pattern might already be available in fabric
+        }
 
         // Check if we're in a git repository
         if (!Directory.Exists(".git") && !await gitService.IsInGitRepositoryAsync())

@@ -12,8 +12,8 @@
     <FileVersion>1.0.0</FileVersion>
     <Authors>prudd</Authors>
     <Description>A cross-platform tool to generate commit messages using fabric</Description>
-    <PackageProjectUrl>https://github.com/prudd/Toolkit</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/prudd/Toolkit</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/PatrickRuddiman/Toolkit</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/PatrickRuddiman/Toolkit</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageTags>git;commit;ai;fabric;cli;tool</PackageTags>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
@@ -23,5 +23,10 @@
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="patterns\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>
