@@ -125,7 +125,8 @@ public class FabricService
         // Escape quotes in changes for command line
         var escapedChanges = EscapeStringForCommandLine(chunk.Content);
 
-        string fabricArgs = $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} \"{escapedChanges}\"";
+        string fabricArgs =
+            $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} \"{escapedChanges}\"";
 
         if (verbose)
         {
@@ -156,7 +157,8 @@ public class FabricService
         // Create a summary prompt for combining multiple chunk messages
 
         var escapedPrompt = EscapeStringForCommandLine(string.Join("\n\n", chunkMessages));
-        string fabricArgs = $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} \"{escapedPrompt}\"";
+        string fabricArgs =
+            $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} \"{escapedPrompt}\"";
 
         if (verbose)
         {
@@ -191,24 +193,7 @@ public class FabricService
             return string.Empty;
         }
 
-        return input
-            .Replace("\"", "\\\"")
-            .Replace("\r", "")
-            .Replace("\n", " ")
-            .Replace("`", "\\`")
-            .Replace("$", "\\$")
-            .Replace(";", "\\;")
-            .Replace("&", "\\&")
-            .Replace("|", "\\|")
-            .Replace("<", "\\<")
-            .Replace(">", "\\>")
-            .Replace("!", "\\!")
-            .Replace("(", "\\(")
-            .Replace(")", "\\)")
-            .Replace("{", "\\{")
-            .Replace("}", "\\}")
-            .Replace("-", "\\-")
-            .Replace("/", "\\/");
+        return input.Replace("\"", "\\\"");
     }
 
     private async Task<(int ExitCode, string Output, string Error)> RunCommandAsync(
