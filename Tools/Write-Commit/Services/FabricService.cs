@@ -122,11 +122,12 @@ public class FabricService
         bool verbose
     )
     {
-        // Escape quotes in changes for command line
-        var escapedChanges = EscapeStringForCommandLine(chunk.Content);
+
+        var platform = DetectPlatform();
+        string escapedQuotedContent = EscapeStringForCommandLine(chunk.Content, platform);
 
         string fabricArgs =
-            $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} \"{escapedChanges}\"";
+            $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} {escapedQuotedContent}";
 
         if (verbose)
         {
@@ -155,10 +156,11 @@ public class FabricService
     )
     {
         // Create a summary prompt for combining multiple chunk messages
+        var platform = DetectPlatform();
+        string escapedQuotedContent = EscapeStringForCommandLine(string.Join("\n\n", chunkMessages), platform);
 
-        var escapedPrompt = EscapeStringForCommandLine(string.Join("\n\n", chunkMessages));
         string fabricArgs =
-            $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} \"{escapedPrompt}\"";
+            $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} {escapedQuotedContent}";
 
         if (verbose)
         {
@@ -185,15 +187,102 @@ public class FabricService
     /// Escapes a string for safe use in command line arguments
     /// </summary>
     /// <param name="input">The input string to escape</param>
+    /// <param name="platform">The platform to escape for (Windows, Linux, or macOS)</param>
     /// <returns>A properly escaped string safe for command line usage</returns>
-    private string EscapeStringForCommandLine(string input)
+    private string EscapeStringForCommandLine(
+        string input,
+        PlatformTarget platform = PlatformTarget.Windows
+    )
     {
         if (string.IsNullOrEmpty(input))
         {
             return string.Empty;
         }
 
-        return input.Replace("\"", "\\\"");
+        switch (platform)
+        {
+            case PlatformTarget.Linux:
+            case PlatformTarget.MacOS:
+                return EscapeForUnixShell(input);
+            case PlatformTarget.Windows:
+            default:
+                return EscapeForWindowsCommandLine(input);
+        }
+    }
+
+    /// <summary>
+    /// Escapes a string for use in Windows command line
+    /// </summary>
+    private string EscapeForWindowsCommandLine(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return string.Empty;
+        }
+
+        // For Windows, we need to handle CMD.EXE escaping rules
+        var result = input
+            // Escape backslashes that precede quotes
+            .Replace("\\", "\\\\")
+            // Escape quotes
+            .Replace("\"", "\\\"")
+            // Escape special characters
+            .Replace("&", "^&")
+            .Replace("|", "^|")
+            .Replace("<", "^<")
+            .Replace(">", "^>")
+            .Replace("^", "^^")
+            // Handle newlines for command line (replace with spaces)
+            .Replace("\r\n", " ")
+            .Replace("\n", " ")
+            .Replace("\r", " ")
+            // Handle other problematic characters
+            .Replace("%", "^%")
+            .Replace("!", "^!");
+
+        return $"\"{result}\"";
+    }
+
+    /// <summary>
+    /// Escapes a string for use in Unix-like shells (Linux and macOS)
+    /// </summary>
+    private string EscapeForUnixShell(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return string.Empty;
+        }
+
+        // For Unix shells, single quotes are the safest way to escape content
+        // but we need to handle single quotes within the string
+
+        // Replace single quotes with '\'' (close quote, escaped quote, open quote)
+        var escaped = input.Replace("'", "'\\''");
+
+        // Wrap the whole thing in single quotes
+        return $"'{escaped}'";
+
+    }
+
+    /// <summary>
+    /// Target platform for command line escaping
+    /// </summary>
+    public enum PlatformTarget
+    {
+        Windows,
+        Linux,
+        MacOS,
+    }
+
+    // Detect the current platform automatically
+    private PlatformTarget DetectPlatform()
+    {
+        if (OperatingSystem.IsWindows())
+            return PlatformTarget.Windows;
+        else if (OperatingSystem.IsMacOS())
+            return PlatformTarget.MacOS;
+        else
+            return PlatformTarget.Linux; // Default to Linux for other Unix-like systems
     }
 
     private async Task<(int ExitCode, string Output, string Error)> RunCommandAsync(
