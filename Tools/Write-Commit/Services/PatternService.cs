@@ -17,7 +17,7 @@ public class PatternService
     }
 
     /// <summary>
-    /// Ensures all patterns are installed and up to date
+    /// Ensures all patterns are installed
     /// </summary>
     public async Task EnsurePatternsInstalledAsync(bool forceReinstall = false)
     {
@@ -47,7 +47,7 @@ public class PatternService
 
         if (_verbose)
         {
-            Console.WriteLine($"Found {patternDirectories.Length} patterns to check/install...");
+            Console.WriteLine($"Found {patternDirectories.Length} patterns to install...");
         }
 
         foreach (var patternDir in patternDirectories)
@@ -58,7 +58,7 @@ public class PatternService
     }
 
     /// <summary>
-    /// Installs or updates a pattern if it has changed
+    /// Installs or updates a pattern
     /// </summary>
     private async Task InstallPatternIfNeededAsync(
         string patternName,
@@ -68,28 +68,17 @@ public class PatternService
     {
         var targetPatternDir = Path.Combine(_fabricPatternsPath, patternName);
 
-        // Check if pattern needs to be installed or updated
-        if (
-            forceReinstall
-            || !Directory.Exists(targetPatternDir)
-            || await HasPatternChangedAsync(sourcePatternDir, targetPatternDir)
-        )
+        // Always install patterns regardless of whether they've changed
+        if (_verbose)
         {
-            if (_verbose)
-            {
-                Console.WriteLine($"Installing/updating pattern: {patternName}");
-            }
-
-            await CopyPatternDirectoryAsync(sourcePatternDir, targetPatternDir);
-
-            if (_verbose)
-            {
-                Console.WriteLine($"Successfully installed pattern: {patternName}");
-            }
+            Console.WriteLine($"Installing pattern: {patternName}");
         }
-        else if (_verbose)
+
+        await CopyPatternDirectoryAsync(sourcePatternDir, targetPatternDir);
+
+        if (_verbose)
         {
-            Console.WriteLine($"Pattern '{patternName}' is up to date.");
+            Console.WriteLine($"Successfully installed pattern: {patternName}");
         }
     }
 
