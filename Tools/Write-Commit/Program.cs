@@ -19,16 +19,16 @@ class Program
             () => FabricPatterns.CommitPattern,
             "Fabric pattern to use"
         );
-        var temperatureOption = new Option<int>(
+        var temperatureOption = new Option<double>(
             "--temperature",
-            () => 1,
+            () => 1.0,
             "Temperature setting for fabric (0-2)"
         );
-        var topPOption = new Option<int>("--topp", () => 1, "Top-p setting for fabric (0-1)");
-        var presenceOption = new Option<int>("--presence", () => 0, "Presence penalty for fabric");
-        var frequencyOption = new Option<int>(
+        var topPOption = new Option<double>("--topp", () => 1.0, "Top-p setting for fabric (0-1)");
+        var presenceOption = new Option<double>("--presence", () => 0.0, "Presence penalty for fabric");
+        var frequencyOption = new Option<double>(
             "--frequency",
-            () => 0,
+            () => 0.0,
             "Frequency penalty for fabric"
         );
         var modelOption = new Option<string>(
@@ -59,10 +59,10 @@ class Program
                 bool dryRun,
                 bool verbose,
                 string pattern,
-                int temperature,
-                int topP,
-                int presence,
-                int frequency,
+                double temperature,
+                double topP,
+                double presence,
+                double frequency,
                 string model
             ) =>
             {
@@ -109,10 +109,10 @@ class Program
         bool dryRun,
         bool verbose,
         string pattern,
-        int temperature,
-        int topP,
-        int presence,
-        int frequency,
+        double temperature,
+        double topP,
+        double presence,
+        double frequency,
         string model
     )
     {
