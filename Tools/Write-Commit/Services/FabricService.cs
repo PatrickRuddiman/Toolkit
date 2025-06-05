@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Globalization;
 using WriteCommit.Constants;
 using WriteCommit.Models;
 
@@ -10,10 +11,10 @@ public class FabricService
     public async Task<string> GenerateCommitMessageAsync(
         List<DiffChunk> chunks,
         string pattern,
-        int temperature,
-        int topP,
-        int presence,
-        int frequency,
+        double temperature,
+        double topP,
+        double presence,
+        double frequency,
         string model,
         bool verbose
     )
@@ -114,10 +115,10 @@ public class FabricService
     private async Task<string> ProcessSingleChunkAsync(
         DiffChunk chunk,
         string pattern,
-        int temperature,
-        int topP,
-        int presence,
-        int frequency,
+        double temperature,
+        double topP,
+        double presence,
+        double frequency,
         string model,
         bool verbose
     )
@@ -127,7 +128,7 @@ public class FabricService
         string escapedQuotedContent = EscapeStringForCommandLine(chunk.Content, platform);
 
         string fabricArgs =
-            $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} {escapedQuotedContent}";
+            $"-t {temperature.ToString(System.Globalization.CultureInfo.InvariantCulture)} -T {topP.ToString(System.Globalization.CultureInfo.InvariantCulture)} -P {presence.ToString(System.Globalization.CultureInfo.InvariantCulture)} -F {frequency.ToString(System.Globalization.CultureInfo.InvariantCulture)} -m {model} -p {pattern} {escapedQuotedContent}";
 
         if (verbose)
         {
@@ -147,10 +148,10 @@ public class FabricService
     private async Task<string> CombineChunkMessagesAsync(
         List<string> chunkMessages,
         string pattern,
-        int temperature,
-        int topP,
-        int presence,
-        int frequency,
+        double temperature,
+        double topP,
+        double presence,
+        double frequency,
         string model,
         bool verbose
     )
@@ -160,7 +161,7 @@ public class FabricService
         string escapedQuotedContent = EscapeStringForCommandLine(string.Join("\n\n", chunkMessages), platform);
 
         string fabricArgs =
-            $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} {escapedQuotedContent}";
+            $"-t {temperature.ToString(System.Globalization.CultureInfo.InvariantCulture)} -T {topP.ToString(System.Globalization.CultureInfo.InvariantCulture)} -P {presence.ToString(System.Globalization.CultureInfo.InvariantCulture)} -F {frequency.ToString(System.Globalization.CultureInfo.InvariantCulture)} -m {model} -p {pattern} {escapedQuotedContent}";
 
         if (verbose)
         {
