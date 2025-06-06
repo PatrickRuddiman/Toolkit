@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using AnalyzeLogs.Models;
 using Microsoft.Extensions.Logging;
 
@@ -11,61 +10,23 @@ namespace AnalyzeLogs.Services;
 public class EmbeddingService : IDisposable
 {
     private readonly ILogger<EmbeddingService> _logger;
-    private readonly HttpClient _httpClient;
-    private readonly ConfigurationService _configService;
-    private string? _apiKey;
+    private readonly OpenAIService _openAIService;
     private readonly string _model;
 
     public EmbeddingService(
         ILogger<EmbeddingService> logger,
-        ConfigurationService configService,
+        OpenAIService openAIService,
         string model = "text-embedding-3-small"
     )
     {
         _logger = logger;
-        _configService = configService;
-        _httpClient = new HttpClient();
+        _openAIService = openAIService;
         _model = model;
-    }
-
-    private async Task<string?> GetApiKeyAsync()
-    {
-        if (_apiKey != null)
-            return _apiKey;
-
-        // Try environment variable first
-        _apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-
-        if (string.IsNullOrEmpty(_apiKey))
-        {
-            // Try configuration file
-            _apiKey = await _configService.GetApiKeyAsync();
-        }
-
-        if (!string.IsNullOrEmpty(_apiKey))
-        {
-            _httpClient.DefaultRequestHeaders.Remove("Authorization");
-            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
-        }
-
-        return _apiKey;
     }
 
     public async Task<bool> HasApiKeyConfiguredAsync()
     {
-        var apiKey = await GetApiKeyAsync();
-        return !string.IsNullOrWhiteSpace(apiKey);
-    }
-
-    private async Task EnsureApiKeyConfiguredAsync()
-    {
-        var apiKey = await GetApiKeyAsync();
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            _logger.LogWarning(
-                "OPENAI_API_KEY not found. Embedding functionality will be disabled."
-            );
-        }
+        return await _openAIService.HasApiKeyConfiguredAsync();
     }
 
     /// <summary>
@@ -73,8 +34,7 @@ public class EmbeddingService : IDisposable
     /// </summary>
     public async Task GenerateEmbeddingsAsync(List<LogEntry> entries, bool verbose = false)
     {
-        var apiKey = await GetApiKeyAsync();
-        if (string.IsNullOrEmpty(apiKey))
+        if (!await _openAIService.HasApiKeyConfiguredAsync())
         {
             _logger.LogWarning("Skipping embedding generation - API key not available");
             return;
@@ -91,7 +51,7 @@ public class EmbeddingService : IDisposable
         var tasks = new List<Task>();
         var semaphore = new SemaphoreSlim(10); // Limit concurrent requests
 
-        foreach (var batch in entries.Chunk(100)) // Process in batches
+        foreach (var batch in entries.Chunk(100))
         {
             tasks.Add(ProcessBatchAsync(batch, semaphore, verbose));
         }
@@ -115,14 +75,13 @@ public class EmbeddingService : IDisposable
 
         try
         {
-            var apiKey = await GetApiKeyAsync();
-            if (string.IsNullOrEmpty(apiKey))
+            if (!await _openAIService.HasApiKeyConfiguredAsync())
             {
                 return; // Skip processing if no API key
             }
 
             var texts = batch.Select(GetEmbeddingText).ToArray();
-            var embeddings = await GetEmbeddingsAsync(texts);
+            var embeddings = await _openAIService.GetEmbeddingsAsync(texts, _model);
 
             for (int i = 0; i < batch.Length && i < embeddings.Length; i++)
             {
@@ -178,46 +137,6 @@ public class EmbeddingService : IDisposable
         }
 
         return text.ToString();
-    }
-
-    /// <summary>
-    /// Gets embeddings from OpenAI API
-    /// </summary>
-    private async Task<float[][]> GetEmbeddingsAsync(string[] texts)
-    {
-        var request = new { model = _model, input = texts };
-
-        var content = new StringContent(
-            JsonSerializer.Serialize(request),
-            Encoding.UTF8,
-            "application/json"
-        );
-
-        var response = await _httpClient.PostAsync("https://api.openai.com/v1/embeddings", content);
-        response.EnsureSuccessStatusCode();
-
-        var responseContent = await response.Content.ReadAsStringAsync();
-        var document = JsonDocument.Parse(responseContent);
-
-        var embeddings = new List<float[]>();
-
-        if (document.RootElement.TryGetProperty("data", out var dataArray))
-        {
-            for (int i = 0; i < dataArray.GetArrayLength(); i++)
-            {
-                var embeddingArray = dataArray[i].GetProperty("embedding");
-                var embedding = new float[embeddingArray.GetArrayLength()];
-
-                for (int j = 0; j < embedding.Length; j++)
-                {
-                    embedding[j] = embeddingArray[j].GetSingle();
-                }
-
-                embeddings.Add(embedding);
-            }
-        }
-
-        return embeddings.ToArray();
     }
 
     /// <summary>
@@ -359,6 +278,6 @@ public class EmbeddingService : IDisposable
 
     public void Dispose()
     {
-        _httpClient?.Dispose();
+        // OpenAIService will handle its own disposal
     }
 }

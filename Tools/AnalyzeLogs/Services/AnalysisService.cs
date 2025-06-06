@@ -10,19 +10,19 @@ public class AnalysisService
 {
     private readonly ILogger<AnalysisService> _logger;
     private readonly Configuration _config;
-    private readonly FabricService _fabricService;
+    private readonly OpenAIService _openAIService;
     private readonly EmbeddingService _embeddingService;
 
     public AnalysisService(
         ILogger<AnalysisService> logger,
         Configuration config,
-        FabricService fabricService,
+        OpenAIService openAIService,
         EmbeddingService embeddingService
     )
     {
         _logger = logger;
         _config = config;
-        _fabricService = fabricService;
+        _openAIService = openAIService;
         _embeddingService = embeddingService;
     }
 
@@ -171,7 +171,7 @@ public class AnalysisService
                 tasks.Add(
                     Task.Run(async () =>
                     {
-                        var anomalies = await _fabricService.DetectAnomaliesAsync(chunk, _config);
+                        var anomalies = await _openAIService.DetectAnomaliesAsync(chunk, _config);
                         lock (result.Anomalies)
                         {
                             result.Anomalies.AddRange(anomalies);
@@ -186,7 +186,7 @@ public class AnalysisService
                 tasks.Add(
                     Task.Run(async () =>
                     {
-                        var coherenceIssues = await _fabricService.AnalyzeCoherenceAsync(
+                        var coherenceIssues = await _openAIService.AnalyzeCoherenceAsync(
                             chunk,
                             _config
                         );
@@ -204,7 +204,7 @@ public class AnalysisService
                 tasks.Add(
                     Task.Run(async () =>
                     {
-                        await _fabricService.TagLogEntriesAsync(chunk, _config);
+                        await _openAIService.TagLogEntriesAsync(chunk, _config);
                     })
                 );
             }

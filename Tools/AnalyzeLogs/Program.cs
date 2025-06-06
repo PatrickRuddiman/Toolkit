@@ -218,12 +218,17 @@ class Program
         services.AddScoped<ConfigurationService>();
         services.AddScoped<FileIngestionService>();
         services.AddScoped<LogParsingService>();
-        services.AddScoped<FabricService>();
+        services.AddScoped<OpenAIService>(provider =>
+        {
+            var logger = provider.GetRequiredService<ILogger<OpenAIService>>();
+            var configService = provider.GetRequiredService<ConfigurationService>();
+            return new OpenAIService(logger, configService);
+        });
         services.AddScoped<EmbeddingService>(provider =>
         {
             var logger = provider.GetRequiredService<ILogger<EmbeddingService>>();
-            var configService = provider.GetRequiredService<ConfigurationService>();
-            return new EmbeddingService(logger, configService);
+            var openAIService = provider.GetRequiredService<OpenAIService>();
+            return new EmbeddingService(logger, openAIService);
         });
         services.AddScoped<AnalysisService>();
         services.AddScoped<ReportService>();
@@ -411,14 +416,15 @@ class Program
     {
         Console.WriteLine("=== Test API Key ===");
         Console.WriteLine();
-
         using var loggerFactory = LoggerFactory.Create(builder =>
             builder.AddConsole().SetMinimumLevel(MsLogLevel.Warning)
         );
 
         var logger = loggerFactory.CreateLogger<EmbeddingService>();
+        var openAILogger = loggerFactory.CreateLogger<OpenAIService>();
+        var openAIService = new OpenAIService(openAILogger, configService);
 
-        var embeddingService = new EmbeddingService(logger, configService);
+        var embeddingService = new EmbeddingService(logger, openAIService);
 
         try
         {

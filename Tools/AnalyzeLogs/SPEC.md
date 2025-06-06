@@ -225,3 +225,51 @@ The modular approach means new log formats or AI patterns can be added with mini
 *   **Testing**: Develop unit tests for the parsing logic (feed sample log lines and verify the `LogEntry` output). Also test the analysis modules with controlled inputs – you might simulate the LLM responses for known inputs to test how the parsing of AI output works. This ensures the system is reliable and each component works in isolation.
 *   **Performance Tuning**: If the log analysis might be rerun frequently or on similar data, consider caching embeddings or AI results. For instance, you could cache the embedding of each unique log message text (so identical lines aren’t embedded twice). Similarly, if using the AI to analyze identical chunks (unlikely in one run, but maybe across runs), cache results. However, caching is secondary; first make it correct and modular.
 *   **Documentation**: Clearly document how to use the CLI (accepted patterns, options) and what each part of the output means. Also document how to extend the system (e.g., how to add a new parser or what prompt templates are used), so future developers or even AI coding agents can easily continue the work.
+
+## Implementation Update: OpenAI Integration with Pattern-Based System
+
+### 30. Architectural Changes
+The application has been updated to replace the previous Fabric service dependency with a direct OpenAI integration using a pattern-based system:
+
+#### Fabric Service Replacement
+*   **Removed Dependency**: The application no longer requires the external Fabric framework
+*   **Direct OpenAI Integration**: A new `OpenAIService` class provides direct access to OpenAI's API
+*   **Pattern-Based Prompts**: System prompts are now stored as markdown files in the `patterns/` directory
+*   **Self-Contained**: The application is fully self-contained without external tool dependencies
+
+#### OpenAI Service Implementation
+The `OpenAIService` class provides the following capabilities:
+*   **Multi-Purpose Analysis**: Handles anomaly detection, coherence analysis, log tagging, summarization, and embeddings
+*   **Pattern Loading**: Dynamically loads system prompts from pattern directories
+*   **Response Parsing**: Structured parsing of OpenAI responses with proper error handling
+*   **Configuration Integration**: Uses the existing configuration system for API keys and model settings
+
+#### Pattern System Structure
+```
+patterns/
+├── analyze_log_anomalies/
+│   └── system.md
+├── analyze_coherence/
+│   └── system.md
+├── tag_logs/
+│   └── system.md
+└── summarize_logs/
+    └── system.md
+```
+
+Each pattern directory contains a `system.md` file with the specialized system prompt for that analysis type.
+
+#### Service Integration
+*   **Dependency Injection**: The `OpenAIService` is registered in the DI container
+*   **EmbeddingService Update**: The `EmbeddingService` now uses `OpenAIService` for generating embeddings
+*   **AnalysisService Update**: The `AnalysisService` uses `OpenAIService` instead of the former Fabric service
+*   **Unified Interface**: All AI operations go through a single, consistent service interface
+
+#### Benefits of the New Architecture
+*   **Simplified Deployment**: No external dependencies required
+*   **Better Control**: Direct control over API calls and response handling
+*   **Extensibility**: Easy to add new analysis patterns by creating new pattern directories
+*   **Maintainability**: Clear separation of concerns with pattern-based prompts
+*   **Performance**: Direct API integration without intermediate layers
+
+This implementation maintains all the original functionality while providing a more streamlined and maintainable architecture.

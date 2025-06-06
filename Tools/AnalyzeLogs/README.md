@@ -5,7 +5,7 @@ AI-powered log analysis tool for microservice systems that provides intelligent 
 ## Features
 
 - **Multi-format Log Parsing**: Supports JSON, structured text, Apache access logs, and unstructured log formats
-- **AI-Powered Analysis**: Uses OpenAI embeddings and Microsoft Fabric for intelligent log analysis
+- **AI-Powered Analysis**: Uses OpenAI GPT models with pattern-based system prompts for intelligent log analysis
 - **Anomaly Detection**: Identifies unusual patterns and outliers in log data
 - **Coherence Analysis**: Detects inconsistencies and correlation issues across services
 - **Semantic Clustering**: Groups similar log entries using embeddings
