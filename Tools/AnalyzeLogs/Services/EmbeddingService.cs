@@ -12,19 +12,58 @@ public class EmbeddingService : IDisposable
 {
     private readonly ILogger<EmbeddingService> _logger;
     private readonly HttpClient _httpClient;
-    private readonly string _apiKey;
+    private readonly ConfigurationService _configService;
+    private string? _apiKey;
     private readonly string _model;
 
-    public EmbeddingService(ILogger<EmbeddingService> logger, string model = "text-embedding-3-small")
+    public EmbeddingService(
+        ILogger<EmbeddingService> logger,
+        ConfigurationService configService,
+        string model = "text-embedding-3-small"
+    )
     {
         _logger = logger;
+        _configService = configService;
         _httpClient = new HttpClient();
         _model = model;
-        
-        _apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY") 
-                  ?? throw new InvalidOperationException("OPENAI_API_KEY environment variable is required");
+    }
 
-        _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
+    private async Task<string?> GetApiKeyAsync()
+    {
+        if (_apiKey != null)
+            return _apiKey;
+
+        // Try environment variable first
+        _apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        
+        if (string.IsNullOrEmpty(_apiKey))
+        {
+            // Try configuration file
+            _apiKey = await _configService.GetApiKeyAsync();
+        }
+
+        if (!string.IsNullOrEmpty(_apiKey))
+        {
+            _httpClient.DefaultRequestHeaders.Remove("Authorization");
+            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
+        }
+
+        return _apiKey;
+    }
+
+    public async Task<bool> HasApiKeyConfiguredAsync()
+    {
+        var apiKey = await GetApiKeyAsync();
+        return !string.IsNullOrWhiteSpace(apiKey);
+    }
+
+    private async Task EnsureApiKeyConfiguredAsync()
+    {
+        var apiKey = await GetApiKeyAsync();
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            _logger.LogWarning("OPENAI_API_KEY not found. Embedding functionality will be disabled.");
+        }
     }
 
     /// <summary>
@@ -32,9 +71,19 @@ public class EmbeddingService : IDisposable
     /// </summary>
     public async Task GenerateEmbeddingsAsync(List<LogEntry> entries, bool verbose = false)
     {
+        var apiKey = await GetApiKeyAsync();
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            _logger.LogWarning("Skipping embedding generation - API key not available");
+            return;
+        }
+
         if (verbose)
         {
-            _logger.LogInformation("Generating embeddings for {EntryCount} log entries", entries.Count);
+            _logger.LogInformation(
+                "Generating embeddings for {EntryCount} log entries",
+                entries.Count
+            );
         }
 
         var tasks = new List<Task>();
@@ -48,8 +97,11 @@ public class EmbeddingService : IDisposable
         await Task.WhenAll(tasks);
 
         var embeddedCount = entries.Count(e => e.Embedding != null);
-        _logger.LogInformation("Generated embeddings for {EmbeddedCount} out of {TotalCount} entries", 
-            embeddedCount, entries.Count);
+        _logger.LogInformation(
+            "Generated embeddings for {EmbeddedCount} out of {TotalCount} entries",
+            embeddedCount,
+            entries.Count
+        );
     }
 
     /// <summary>
@@ -61,6 +113,12 @@ public class EmbeddingService : IDisposable
         
         try
         {
+            var apiKey = await GetApiKeyAsync();
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                return; // Skip processing if no API key
+            }
+
             var texts = batch.Select(GetEmbeddingText).ToArray();
             var embeddings = await GetEmbeddingsAsync(texts);
 
@@ -71,8 +129,15 @@ public class EmbeddingService : IDisposable
 
             if (verbose)
             {
-                _logger.LogDebug("Generated embeddings for batch of {BatchSize} entries", batch.Length);
+                _logger.LogDebug(
+                    "Generated embeddings for batch of {BatchSize} entries",
+                    batch.Length
+                );
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate embeddings for batch");
         }
         finally
         {
@@ -93,13 +158,13 @@ public class EmbeddingService : IDisposable
         // Include service if available
         if (!string.IsNullOrEmpty(entry.Service))
         {
-            text.Append($"[{entry.Service}] ");
+            text.Append($"{entry.Service}: ");
         }
         
-        // Include main message
+        // Include the main message
         text.Append(entry.Message);
         
-        // Include relevant additional data
+        // Include additional structured data
         if (entry.HttpStatus.HasValue)
         {
             text.Append($" Status:{entry.HttpStatus}");
@@ -109,7 +174,7 @@ public class EmbeddingService : IDisposable
         {
             text.Append($" ResponseTime:{entry.ResponseTimeMs}ms");
         }
-
+        
         return text.ToString();
     }
 
@@ -118,53 +183,54 @@ public class EmbeddingService : IDisposable
     /// </summary>
     private async Task<float[][]> GetEmbeddingsAsync(string[] texts)
     {
-        try
+        var request = new { model = _model, input = texts };
+
+        var content = new StringContent(
+            JsonSerializer.Serialize(request),
+            Encoding.UTF8,
+            "application/json"
+        );
+        
+        var response = await _httpClient.PostAsync("https://api.openai.com/v1/embeddings", content);
+        response.EnsureSuccessStatusCode();
+
+        var responseContent = await response.Content.ReadAsStringAsync();
+        var document = JsonDocument.Parse(responseContent);
+        
+        var embeddings = new List<float[]>();
+        
+        if (document.RootElement.TryGetProperty("data", out var dataArray))
         {
-            var request = new
-            {
-                input = texts,
-                model = _model
-            };
-
-            var json = JsonSerializer.Serialize(request);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-            var response = await _httpClient.PostAsync("https://api.openai.com/v1/embeddings", content);
-            response.EnsureSuccessStatusCode();
-
-            var responseJson = await response.Content.ReadAsStringAsync();
-            using var document = JsonDocument.Parse(responseJson);
-            
-            var dataArray = document.RootElement.GetProperty("data");
-            var embeddings = new float[dataArray.GetArrayLength()][];
-
-            for (int i = 0; i < embeddings.Length; i++)
+            for (int i = 0; i < dataArray.GetArrayLength(); i++)
             {
                 var embeddingArray = dataArray[i].GetProperty("embedding");
-                embeddings[i] = new float[embeddingArray.GetArrayLength()];
+                var embedding = new float[embeddingArray.GetArrayLength()];
                 
-                for (int j = 0; j < embeddings[i].Length; j++)
+                for (int j = 0; j < embedding.Length; j++)
                 {
-                    embeddings[i][j] = embeddingArray[j].GetSingle();
+                    embedding[j] = embeddingArray[j].GetSingle();
                 }
+                
+                embeddings.Add(embedding);
             }
+        }
 
-            return embeddings;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error generating embeddings for {TextCount} texts", texts.Length);
-            return new float[texts.Length][];
-        }
+        return embeddings.ToArray();
     }
 
     /// <summary>
-    /// Finds similar log entries using cosine similarity
+    /// Finds similar log entries using semantic search
     /// </summary>
-    public List<(LogEntry Entry, double Similarity)> FindSimilar(LogEntry target, List<LogEntry> candidates, int topK = 10)
+    public List<(LogEntry Entry, double Similarity)> FindSimilar(
+        LogEntry target,
+        List<LogEntry> candidates,
+        int topK = 10
+    )
     {
         if (target.Embedding == null)
+        {
             return new List<(LogEntry, double)>();
+        }
 
         var similarities = new List<(LogEntry Entry, double Similarity)>();
 
@@ -177,10 +243,7 @@ public class EmbeddingService : IDisposable
             similarities.Add((candidate, similarity));
         }
 
-        return similarities
-            .OrderByDescending(s => s.Similarity)
-            .Take(topK)
-            .ToList();
+        return similarities.OrderByDescending(s => s.Similarity).Take(topK).ToList();
     }
 
     /// <summary>
@@ -189,43 +252,52 @@ public class EmbeddingService : IDisposable
     public List<List<LogEntry>> ClusterEntries(List<LogEntry> entries, int maxClusters = 10)
     {
         var entriesWithEmbeddings = entries.Where(e => e.Embedding != null).ToList();
-        
         if (entriesWithEmbeddings.Count == 0)
+        {
             return new List<List<LogEntry>>();
+        }
 
-        var k = Math.Min(maxClusters, entriesWithEmbeddings.Count);
         var clusters = new List<List<LogEntry>>();
+        var visited = new HashSet<string>();
 
-        // Simple clustering by similarity
-        var processed = new HashSet<string>();
-        
         foreach (var entry in entriesWithEmbeddings)
         {
-            if (processed.Contains(entry.Id))
+            if (visited.Contains(entry.Id))
                 continue;
 
             var cluster = new List<LogEntry> { entry };
-            processed.Add(entry.Id);
+            visited.Add(entry.Id);
 
             // Find similar entries
             var similar = FindSimilar(entry, entriesWithEmbeddings, 20)
-                .Where(s => s.Similarity > 0.8 && !processed.Contains(s.Entry.Id))
-                .Select(s => s.Entry)
-                .ToList();
+                .Where(s => s.Similarity > 0.8 && !visited.Contains(s.Entry.Id))
+                .Take(50);
 
-            foreach (var similarEntry in similar)
+            foreach (var (similarEntry, _) in similar)
             {
-                cluster.Add(similarEntry);
-                processed.Add(similarEntry.Id);
+                if (!visited.Contains(similarEntry.Id))
+                {
+                    cluster.Add(similarEntry);
+                    visited.Add(similarEntry.Id);
+                }
             }
 
-            clusters.Add(cluster);
+            if (cluster.Count > 1)
+            {
+                clusters.Add(cluster);
+            }
+
+            if (clusters.Count >= maxClusters)
+                break;
         }
 
-        _logger.LogInformation("Clustered {EntryCount} entries into {ClusterCount} clusters", 
-            entriesWithEmbeddings.Count, clusters.Count);
+        _logger.LogInformation(
+            "Clustered {EntryCount} entries into {ClusterCount} clusters",
+            entriesWithEmbeddings.Count,
+            clusters.Count
+        );
 
-        return clusters.OrderByDescending(c => c.Count).ToList();
+        return clusters;
     }
 
     /// <summary>
@@ -240,21 +312,19 @@ public class EmbeddingService : IDisposable
         {
             var similarities = FindSimilar(entry, entriesWithEmbeddings, 5);
             
-            if (similarities.Count > 0)
+            if (similarities.Count == 0 || similarities.Max(s => s.Similarity) < threshold)
             {
-                var avgSimilarity = similarities.Average(s => s.Similarity);
-                
-                if (avgSimilarity < threshold)
-                {
-                    entry.IsAnomaly = true;
-                    entry.AnomalyScore = 1.0 - avgSimilarity;
-                    outliers.Add(entry);
-                }
+                entry.IsAnomaly = true;
+                entry.AnomalyScore = 1.0 - (similarities.Count > 0 ? similarities.Max(s => s.Similarity) : 0.0);
+                outliers.Add(entry);
             }
         }
 
-        _logger.LogInformation("Detected {OutlierCount} outliers out of {TotalCount} entries", 
-            outliers.Count, entriesWithEmbeddings.Count);
+        _logger.LogInformation(
+            "Detected {OutlierCount} outliers out of {TotalCount} entries",
+            outliers.Count,
+            entriesWithEmbeddings.Count
+        );
 
         return outliers;
     }
@@ -265,11 +335,11 @@ public class EmbeddingService : IDisposable
     private double CosineSimilarity(float[] a, float[] b)
     {
         if (a.Length != b.Length)
-            return 0;
+            return 0.0;
 
-        double dotProduct = 0;
-        double normA = 0;
-        double normB = 0;
+        double dotProduct = 0.0;
+        double normA = 0.0;
+        double normB = 0.0;
 
         for (int i = 0; i < a.Length; i++)
         {
@@ -278,15 +348,12 @@ public class EmbeddingService : IDisposable
             normB += b[i] * b[i];
         }
 
-        if (normA == 0 || normB == 0)
-            return 0;
+        if (normA == 0.0 || normB == 0.0)
+            return 0.0;
 
         return dotProduct / (Math.Sqrt(normA) * Math.Sqrt(normB));
     }
 
-    /// <summary>
-    /// Disposes the HttpClient and other resources
-    /// </summary>
     public void Dispose()
     {
         _httpClient?.Dispose();
