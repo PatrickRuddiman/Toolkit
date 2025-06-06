@@ -38,17 +38,17 @@ public class ConfigurationService
         {
             OpenAIApiKey = apiKey,
             CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            UpdatedAt = DateTime.UtcNow,
         };
 
         var configPath = GetConfigFilePath();
-        var json = JsonSerializer.Serialize(config, new JsonSerializerOptions 
-        { 
-            WriteIndented = true 
-        });
+        var json = JsonSerializer.Serialize(
+            config,
+            new JsonSerializerOptions { WriteIndented = true }
+        );
 
         await File.WriteAllTextAsync(configPath, json);
-        
+
         // Set file permissions to be more secure (read-only for user)
         if (OperatingSystem.IsWindows())
         {
@@ -62,7 +62,7 @@ public class ConfigurationService
     public async Task<string?> GetApiKeyAsync()
     {
         var configPath = GetConfigFilePath();
-        
+
         if (!File.Exists(configPath))
         {
             _logger.LogDebug("Configuration file not found: {Path}", configPath);
@@ -73,7 +73,7 @@ public class ConfigurationService
         {
             var json = await File.ReadAllTextAsync(configPath);
             using var document = JsonDocument.Parse(json);
-            
+
             if (document.RootElement.TryGetProperty("OpenAIApiKey", out var apiKeyElement))
             {
                 var apiKey = apiKeyElement.GetString();
@@ -83,7 +83,11 @@ public class ConfigurationService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to read API key from configuration file: {Path}", configPath);
+            _logger.LogWarning(
+                ex,
+                "Failed to read API key from configuration file: {Path}",
+                configPath
+            );
         }
 
         return null;
@@ -98,7 +102,7 @@ public class ConfigurationService
     public async Task RemoveConfigAsync()
     {
         var configPath = GetConfigFilePath();
-        
+
         if (File.Exists(configPath))
         {
             File.Delete(configPath);
@@ -114,7 +118,7 @@ public class ConfigurationService
     {
         var configPath = GetConfigFilePath();
         var exists = File.Exists(configPath);
-        
+
         return $"Configuration file: {configPath}\nExists: {exists}";
     }
 }

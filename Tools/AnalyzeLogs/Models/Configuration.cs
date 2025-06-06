@@ -53,15 +53,16 @@ public class Configuration
     /// <summary>
     /// Patterns to redact from logs before sending to AI
     /// </summary>
-    public List<string> RedactionPatterns { get; set; } = new()
-    {
-        @"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", // Email addresses
-        @"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", // IP addresses
-        @"\b\d{4}-\d{4}-\d{4}-\d{4}\b", // Credit card patterns
-        @"password[=:\s]+\S+", // Password fields
-        @"token[=:\s]+\S+", // Token fields
-        @"key[=:\s]+\S+" // Key fields
-    };
+    public List<string> RedactionPatterns { get; set; } =
+        new()
+        {
+            @"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", // Email addresses
+            @"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", // IP addresses
+            @"\b\d{4}-\d{4}-\d{4}-\d{4}\b", // Credit card patterns
+            @"password[=:\s]+\S+", // Password fields
+            @"token[=:\s]+\S+", // Token fields
+            @"key[=:\s]+\S+", // Key fields
+        };
 
     /// <summary>
     /// Minimum anomaly confidence threshold
@@ -147,15 +148,16 @@ public class AnalysisConfig
     /// <summary>
     /// Patterns to redact from logs before sending to AI
     /// </summary>
-    public List<string> RedactionPatterns { get; set; } = new()
-    {
-        @"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", // Email addresses
-        @"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", // IP addresses
-        @"\b\d{4}-\d{4}-\d{4}-\d{4}\b", // Credit card patterns
-        @"password[=:\s]+\S+", // Password fields
-        @"token[=:\s]+\S+", // Token fields
-        @"key[=:\s]+\S+" // Key fields
-    };
+    public List<string> RedactionPatterns { get; set; } =
+        new()
+        {
+            @"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", // Email addresses
+            @"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", // IP addresses
+            @"\b\d{4}-\d{4}-\d{4}-\d{4}\b", // Credit card patterns
+            @"password[=:\s]+\S+", // Password fields
+            @"token[=:\s]+\S+", // Token fields
+            @"key[=:\s]+\S+", // Key fields
+        };
 
     /// <summary>
     /// Minimum anomaly confidence threshold

@@ -142,7 +142,7 @@ public class PatternInstaller
             {
                 Console.WriteLine($"Starting pattern installation from {sourceDir} to {targetDir}");
             }
-            
+
             // Remove existing target directory if it exists
             if (Directory.Exists(targetDir))
             {
@@ -160,7 +160,7 @@ public class PatternInstaller
             {
                 Console.WriteLine($"Copying pattern files and directories...");
             }
-            
+
             // Copy all files and subdirectories
             await CopyDirectoryRecursiveAsync(sourceDir, targetDir, verbose);
 
@@ -178,7 +178,11 @@ public class PatternInstaller
         }
     }
 
-    private static async Task CopyDirectoryRecursiveAsync(string sourceDir, string targetDir, bool verbose = false)
+    private static async Task CopyDirectoryRecursiveAsync(
+        string sourceDir,
+        string targetDir,
+        bool verbose = false
+    )
     {
         // Create target directory
         Directory.CreateDirectory(targetDir);
@@ -188,7 +192,7 @@ public class PatternInstaller
         {
             var targetFile = Path.Combine(targetDir, Path.GetFileName(file));
             File.Copy(file, targetFile, true);
-            
+
             if (verbose)
             {
                 Console.WriteLine($"  Copied file: {Path.GetFileName(file)}");
@@ -200,12 +204,12 @@ public class PatternInstaller
         {
             var dirName = Path.GetFileName(directory);
             var targetSubDir = Path.Combine(targetDir, dirName);
-            
+
             if (verbose)
             {
                 Console.WriteLine($"  Processing directory: {dirName}");
             }
-            
+
             await CopyDirectoryRecursiveAsync(directory, targetSubDir, verbose);
         }
     }

@@ -35,7 +35,7 @@ public class EmbeddingService : IDisposable
 
         // Try environment variable first
         _apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-        
+
         if (string.IsNullOrEmpty(_apiKey))
         {
             // Try configuration file
@@ -62,7 +62,9 @@ public class EmbeddingService : IDisposable
         var apiKey = await GetApiKeyAsync();
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            _logger.LogWarning("OPENAI_API_KEY not found. Embedding functionality will be disabled.");
+            _logger.LogWarning(
+                "OPENAI_API_KEY not found. Embedding functionality will be disabled."
+            );
         }
     }
 
@@ -110,7 +112,7 @@ public class EmbeddingService : IDisposable
     private async Task ProcessBatchAsync(LogEntry[] batch, SemaphoreSlim semaphore, bool verbose)
     {
         await semaphore.WaitAsync();
-        
+
         try
         {
             var apiKey = await GetApiKeyAsync();
@@ -151,30 +153,30 @@ public class EmbeddingService : IDisposable
     private string GetEmbeddingText(LogEntry entry)
     {
         var text = new StringBuilder();
-        
+
         // Include log level
         text.Append($"[{entry.Level}] ");
-        
+
         // Include service if available
         if (!string.IsNullOrEmpty(entry.Service))
         {
             text.Append($"{entry.Service}: ");
         }
-        
+
         // Include the main message
         text.Append(entry.Message);
-        
+
         // Include additional structured data
         if (entry.HttpStatus.HasValue)
         {
             text.Append($" Status:{entry.HttpStatus}");
         }
-        
+
         if (entry.ResponseTimeMs.HasValue)
         {
             text.Append($" ResponseTime:{entry.ResponseTimeMs}ms");
         }
-        
+
         return text.ToString();
     }
 
@@ -190,27 +192,27 @@ public class EmbeddingService : IDisposable
             Encoding.UTF8,
             "application/json"
         );
-        
+
         var response = await _httpClient.PostAsync("https://api.openai.com/v1/embeddings", content);
         response.EnsureSuccessStatusCode();
 
         var responseContent = await response.Content.ReadAsStringAsync();
         var document = JsonDocument.Parse(responseContent);
-        
+
         var embeddings = new List<float[]>();
-        
+
         if (document.RootElement.TryGetProperty("data", out var dataArray))
         {
             for (int i = 0; i < dataArray.GetArrayLength(); i++)
             {
                 var embeddingArray = dataArray[i].GetProperty("embedding");
                 var embedding = new float[embeddingArray.GetArrayLength()];
-                
+
                 for (int j = 0; j < embedding.Length; j++)
                 {
                     embedding[j] = embeddingArray[j].GetSingle();
                 }
-                
+
                 embeddings.Add(embedding);
             }
         }
@@ -311,11 +313,12 @@ public class EmbeddingService : IDisposable
         foreach (var entry in entriesWithEmbeddings)
         {
             var similarities = FindSimilar(entry, entriesWithEmbeddings, 5);
-            
+
             if (similarities.Count == 0 || similarities.Max(s => s.Similarity) < threshold)
             {
                 entry.IsAnomaly = true;
-                entry.AnomalyScore = 1.0 - (similarities.Count > 0 ? similarities.Max(s => s.Similarity) : 0.0);
+                entry.AnomalyScore =
+                    1.0 - (similarities.Count > 0 ? similarities.Max(s => s.Similarity) : 0.0);
                 outliers.Add(entry);
             }
         }

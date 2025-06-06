@@ -122,7 +122,6 @@ public class FabricService
         bool verbose
     )
     {
-
         var platform = DetectPlatform();
         string escapedQuotedContent = EscapeStringForCommandLine(chunk.Content, platform);
 
@@ -157,7 +156,10 @@ public class FabricService
     {
         // Create a summary prompt for combining multiple chunk messages
         var platform = DetectPlatform();
-        string escapedQuotedContent = EscapeStringForCommandLine(string.Join("\n\n", chunkMessages), platform);
+        string escapedQuotedContent = EscapeStringForCommandLine(
+            string.Join("\n\n", chunkMessages),
+            platform
+        );
 
         string fabricArgs =
             $"-t {temperature} -T {topP} -P {presence} -F {frequency} -m {model} -p {pattern} {escapedQuotedContent}";
@@ -261,7 +263,6 @@ public class FabricService
 
         // Wrap the whole thing in single quotes
         return $"'{escaped}'";
-
     }
 
     /// <summary>

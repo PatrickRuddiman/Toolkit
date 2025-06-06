@@ -17,7 +17,8 @@ public class AnalysisService
         ILogger<AnalysisService> logger,
         Configuration config,
         FabricService fabricService,
-        EmbeddingService embeddingService)
+        EmbeddingService embeddingService
+    )
     {
         _logger = logger;
         _config = config;
@@ -36,7 +37,7 @@ public class AnalysisService
         {
             TotalEntries = logEntries.Count,
             StartTime = logEntries.Count > 0 ? logEntries.Min(e => e.Timestamp) : DateTime.UtcNow,
-            EndTime = logEntries.Count > 0 ? logEntries.Max(e => e.Timestamp) : DateTime.UtcNow
+            EndTime = logEntries.Count > 0 ? logEntries.Max(e => e.Timestamp) : DateTime.UtcNow,
         };
 
         try
@@ -46,7 +47,7 @@ public class AnalysisService
             {
                 _logger.LogInformation("Generating embeddings...");
                 await _embeddingService.GenerateEmbeddingsAsync(logEntries, _config.Verbose);
-                
+
                 // Detect outliers using embeddings
                 var outliers = _embeddingService.DetectOutliers(logEntries);
                 result.EmbeddingOutliers.AddRange(outliers);
@@ -68,8 +69,11 @@ public class AnalysisService
             // Step 5: Find correlations
             result.Correlations = FindCorrelations(logEntries);
 
-            _logger.LogInformation("Analysis completed. Found {AnomalyCount} anomalies across {ServiceCount} services",
-                result.Anomalies.Count, result.ServiceMetrics.Count);
+            _logger.LogInformation(
+                "Analysis completed. Found {AnomalyCount} anomalies across {ServiceCount} services",
+                result.Anomalies.Count,
+                result.ServiceMetrics.Count
+            );
         }
         catch (Exception ex)
         {
@@ -94,7 +98,10 @@ public class AnalysisService
             // Estimate token count (rough approximation)
             var entryTokens = EstimateTokenCount(entry);
 
-            if (currentTokenCount + entryTokens > _config.MaxChunkSize && currentChunk.Entries.Count > 0)
+            if (
+                currentTokenCount + entryTokens > _config.MaxChunkSize
+                && currentChunk.Entries.Count > 0
+            )
             {
                 // Finalize current chunk
                 FinalizeChunk(currentChunk);
@@ -107,7 +114,7 @@ public class AnalysisService
 
             currentChunk.Entries.Add(entry);
             currentChunk.Services.Add(entry.Service ?? "Unknown");
-            
+
             if (!string.IsNullOrEmpty(entry.CorrelationId))
             {
                 currentChunk.CorrelationIds.Add(entry.CorrelationId);
@@ -161,36 +168,45 @@ public class AnalysisService
             // Anomaly detection
             if (_config.EnableAnomalyDetection)
             {
-                tasks.Add(Task.Run(async () =>
-                {
-                    var anomalies = await _fabricService.DetectAnomaliesAsync(chunk, _config);
-                    lock (result.Anomalies)
+                tasks.Add(
+                    Task.Run(async () =>
                     {
-                        result.Anomalies.AddRange(anomalies);
-                    }
-                }));
+                        var anomalies = await _fabricService.DetectAnomaliesAsync(chunk, _config);
+                        lock (result.Anomalies)
+                        {
+                            result.Anomalies.AddRange(anomalies);
+                        }
+                    })
+                );
             }
 
             // Coherence analysis
             if (_config.EnableCoherenceAnalysis)
             {
-                tasks.Add(Task.Run(async () =>
-                {
-                    var coherenceIssues = await _fabricService.AnalyzeCoherenceAsync(chunk, _config);
-                    lock (result.Anomalies)
+                tasks.Add(
+                    Task.Run(async () =>
                     {
-                        result.Anomalies.AddRange(coherenceIssues);
-                    }
-                }));
+                        var coherenceIssues = await _fabricService.AnalyzeCoherenceAsync(
+                            chunk,
+                            _config
+                        );
+                        lock (result.Anomalies)
+                        {
+                            result.Anomalies.AddRange(coherenceIssues);
+                        }
+                    })
+                );
             }
 
             // Tagging
             if (_config.EnableTagging)
             {
-                tasks.Add(Task.Run(async () =>
-                {
-                    await _fabricService.TagLogEntriesAsync(chunk, _config);
-                }));
+                tasks.Add(
+                    Task.Run(async () =>
+                    {
+                        await _fabricService.TagLogEntriesAsync(chunk, _config);
+                    })
+                );
             }
 
             await Task.WhenAll(tasks);
@@ -225,17 +241,19 @@ public class AnalysisService
                 StartTime = entries.Min(e => e.Timestamp),
                 EndTime = entries.Max(e => e.Timestamp),
                 RequestRate = requestRate,
-                UniqueUsers = entries.Where(e => !string.IsNullOrEmpty(e.UserId))
-                                   .Select(e => e.UserId)
-                                   .Distinct()
-                                   .Count()
+                UniqueUsers = entries
+                    .Where(e => !string.IsNullOrEmpty(e.UserId))
+                    .Select(e => e.UserId)
+                    .Distinct()
+                    .Count(),
             };
 
             // Calculate response times if available
-            var responseTimes = entries.Where(e => e.ResponseTimeMs.HasValue)
-                                     .Select(e => e.ResponseTimeMs!.Value)
-                                     .ToList();
-            
+            var responseTimes = entries
+                .Where(e => e.ResponseTimeMs.HasValue)
+                .Select(e => e.ResponseTimeMs!.Value)
+                .ToList();
+
             if (responseTimes.Count > 0)
             {
                 serviceMetric.AverageResponseTime = responseTimes.Average();
@@ -243,15 +261,17 @@ public class AnalysisService
             }
 
             // Calculate HTTP status distribution
-            var httpStatuses = entries.Where(e => e.HttpStatus.HasValue)
-                                    .GroupBy(e => e.HttpStatus!.Value)
-                                    .ToDictionary(g => g.Key, g => g.Count());
+            var httpStatuses = entries
+                .Where(e => e.HttpStatus.HasValue)
+                .GroupBy(e => e.HttpStatus!.Value)
+                .ToDictionary(g => g.Key, g => g.Count());
             serviceMetric.HttpStatusDistribution = httpStatuses;
 
             // Calculate tag distribution
-            var tags = entries.SelectMany(e => e.Tags)
-                            .GroupBy(t => t)
-                            .ToDictionary(g => g.Key, g => g.Count());
+            var tags = entries
+                .SelectMany(e => e.Tags)
+                .GroupBy(t => t)
+                .ToDictionary(g => g.Key, g => g.Count());
             serviceMetric.TagDistribution = tags;
 
             metrics.Add(serviceMetric);
@@ -275,7 +295,7 @@ public class AnalysisService
         foreach (var group in correlationGroups)
         {
             var entries = group.OrderBy(e => e.Timestamp).ToList();
-            
+
             var correlation = new LogCorrelation
             {
                 Id = group.Key,
@@ -283,7 +303,7 @@ public class AnalysisService
                 Services = entries.Select(e => e.Service ?? "Unknown").ToHashSet(),
                 StartTime = entries.Min(e => e.Timestamp),
                 EndTime = entries.Max(e => e.Timestamp),
-                IsSuccessful = !entries.Any(e => e.Level >= Models.LogLevel.Error)
+                IsSuccessful = !entries.Any(e => e.Level >= Models.LogLevel.Error),
             };
 
             correlations.Add(correlation);
@@ -298,14 +318,20 @@ public class AnalysisService
         // Group by time windows
         var timeWindowMinutes = _config.CorrelationWindowMinutes;
         var timeGroups = uncorrelatedEntries
-            .GroupBy(e => new DateTime(e.Timestamp.Year, e.Timestamp.Month, e.Timestamp.Day,
-                                     e.Timestamp.Hour, e.Timestamp.Minute / timeWindowMinutes * timeWindowMinutes, 0))
+            .GroupBy(e => new DateTime(
+                e.Timestamp.Year,
+                e.Timestamp.Month,
+                e.Timestamp.Day,
+                e.Timestamp.Hour,
+                e.Timestamp.Minute / timeWindowMinutes * timeWindowMinutes,
+                0
+            ))
             .Where(g => g.Count() > 1);
 
         foreach (var group in timeGroups)
         {
             var entries = group.ToList();
-            
+
             var correlation = new LogCorrelation
             {
                 Id = $"time-{group.Key:yyyyMMddHHmm}",
@@ -313,7 +339,7 @@ public class AnalysisService
                 Services = entries.Select(e => e.Service ?? "Unknown").ToHashSet(),
                 StartTime = entries.Min(e => e.Timestamp),
                 EndTime = entries.Max(e => e.Timestamp),
-                IsSuccessful = !entries.Any(e => e.Level >= Models.LogLevel.Error)
+                IsSuccessful = !entries.Any(e => e.Level >= Models.LogLevel.Error),
             };
 
             correlations.Add(correlation);
@@ -327,12 +353,13 @@ public class AnalysisService
     /// </summary>
     private double CalculatePercentile(List<double> values, double percentile)
     {
-        if (values.Count == 0) return 0;
-        
+        if (values.Count == 0)
+            return 0;
+
         var sorted = values.OrderBy(x => x).ToList();
         var index = (int)Math.Ceiling(percentile * sorted.Count) - 1;
         index = Math.Max(0, Math.Min(index, sorted.Count - 1));
-        
+
         return sorted[index];
     }
 }

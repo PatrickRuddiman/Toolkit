@@ -20,7 +20,7 @@ public class LogParsingService
             new JsonLogParser(),
             new StructuredTextLogParser(),
             new AccessLogParser(),
-            new UnstructuredLogParser()
+            new UnstructuredLogParser(),
         };
 
         // Sort by priority (higher first)
@@ -48,7 +48,7 @@ public class LogParsingService
             await foreach (var line in File.ReadLinesAsync(filePath))
             {
                 lineNumber++;
-                
+
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
 
@@ -65,8 +65,12 @@ public class LogParsingService
                 }
                 else
                 {
-                    _logger.LogWarning("Failed to parse line {LineNumber} in file {FilePath}: {Line}", 
-                        lineNumber, filePath, line);
+                    _logger.LogWarning(
+                        "Failed to parse line {LineNumber} in file {FilePath}: {Line}",
+                        lineNumber,
+                        filePath,
+                        line
+                    );
                 }
             }
         }
@@ -75,7 +79,11 @@ public class LogParsingService
             _logger.LogError(ex, "Error parsing file {FilePath}", filePath);
         }
 
-        _logger.LogInformation("Parsed {EntryCount} entries from {FilePath}", entries.Count, filePath);
+        _logger.LogInformation(
+            "Parsed {EntryCount} entries from {FilePath}",
+            entries.Count,
+            filePath
+        );
         return entries;
     }
 
@@ -88,7 +96,7 @@ public class LogParsingService
         var tasks = filePaths.Select(ParseFileAsync);
 
         var results = await Task.WhenAll(tasks);
-        
+
         foreach (var entries in results)
         {
             allEntries.AddRange(entries);
@@ -97,8 +105,11 @@ public class LogParsingService
         // Sort by timestamp
         allEntries.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
 
-        _logger.LogInformation("Parsed {TotalEntries} total entries from {FileCount} files", 
-            allEntries.Count, filePaths.Count());
+        _logger.LogInformation(
+            "Parsed {TotalEntries} total entries from {FileCount} files",
+            allEntries.Count,
+            filePaths.Count()
+        );
 
         return allEntries;
     }
@@ -118,8 +129,12 @@ public class LogParsingService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Parser {ParserType} failed on line {LineNumber}", 
-                        parser.GetType().Name, lineNumber);
+                    _logger.LogWarning(
+                        ex,
+                        "Parser {ParserType} failed on line {LineNumber}",
+                        parser.GetType().Name,
+                        lineNumber
+                    );
                     continue;
                 }
             }
@@ -134,7 +149,7 @@ public class LogParsingService
     private string DeriveServiceName(string filePath)
     {
         var fileName = Path.GetFileNameWithoutExtension(filePath);
-        
+
         // Remove common log file suffixes
         fileName = fileName
             .Replace("-service", "")
@@ -194,7 +209,7 @@ public class LogParsingService
             @"correlationId[=:\s]+([a-fA-F0-9\-]+)",
             @"correlation[_-]?id[=:\s]+([a-fA-F0-9\-]+)",
             @"reqId[=:\s]+([a-fA-F0-9\-]+)",
-            @"requestId[=:\s]+([a-fA-F0-9\-]+)"
+            @"requestId[=:\s]+([a-fA-F0-9\-]+)",
         };
 
         return ExtractValueByPatterns(message, patterns);
@@ -206,7 +221,7 @@ public class LogParsingService
         {
             @"traceId[=:\s]+([a-fA-F0-9\-]+)",
             @"trace[_-]?id[=:\s]+([a-fA-F0-9\-]+)",
-            @"spanId[=:\s]+([a-fA-F0-9\-]+)"
+            @"spanId[=:\s]+([a-fA-F0-9\-]+)",
         };
 
         return ExtractValueByPatterns(message, patterns);
@@ -218,7 +233,7 @@ public class LogParsingService
         {
             @"userId[=:\s]+([a-zA-Z0-9\-_@.]+)",
             @"user[_-]?id[=:\s]+([a-zA-Z0-9\-_@.]+)",
-            @"user[=:\s]+([a-zA-Z0-9\-_@.]+)"
+            @"user[=:\s]+([a-zA-Z0-9\-_@.]+)",
         };
 
         return ExtractValueByPatterns(message, patterns);
@@ -228,7 +243,7 @@ public class LogParsingService
     {
         var pattern = @"\b([1-5]\d{2})\b";
         var match = System.Text.RegularExpressions.Regex.Match(message, pattern);
-        
+
         if (match.Success && int.TryParse(match.Groups[1].Value, out var status))
         {
             return status;
@@ -241,9 +256,12 @@ public class LogParsingService
     {
         foreach (var pattern in patterns)
         {
-            var match = System.Text.RegularExpressions.Regex.Match(text, pattern, 
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            
+            var match = System.Text.RegularExpressions.Regex.Match(
+                text,
+                pattern,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            );
+
             if (match.Success)
             {
                 return match.Groups[1].Value;

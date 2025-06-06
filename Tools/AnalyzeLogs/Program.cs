@@ -204,7 +204,7 @@ class Program
             else
                 builder.SetMinimumLevel(MsLogLevel.Information);
         });
-        
+
         // Register services
         services.AddSingleton<Configuration>(provider => new Configuration
         {
@@ -258,7 +258,7 @@ class Program
 
         // Generate report
         var report = await reportService.GenerateReportAsync(analysisResult, logFiles);
-        
+
         // Output report
         if (string.IsNullOrEmpty(output))
         {
@@ -275,17 +275,18 @@ class Program
     {
         Console.WriteLine("=== AnalyzeLogs Configuration Setup ===");
         Console.WriteLine();
-        
+
         // Setup basic logging for setup
         using var loggerFactory = LoggerFactory.Create(builder =>
-            builder.AddConsole().SetMinimumLevel(MsLogLevel.Information));
-        
+            builder.AddConsole().SetMinimumLevel(MsLogLevel.Information)
+        );
+
         var logger = loggerFactory.CreateLogger<ConfigurationService>();
         var configService = new ConfigurationService(logger);
 
         // Check current configuration status
         var hasApiKey = await configService.HasApiKeyAsync();
-        
+
         Console.WriteLine($"Configuration Status:");
         Console.WriteLine($"- Configuration file: {configService.GetConfigFilePath()}");
         Console.WriteLine($"- API key configured: {(hasApiKey ? "Yes" : "No")}");
@@ -340,7 +341,7 @@ class Program
         Console.WriteLine();
 
         Console.Write("Enter your OpenAI API key (input will be hidden): ");
-        
+
         // Hide input for security
         var apiKey = ReadPasswordFromConsole();
         Console.WriteLine();
@@ -380,14 +381,14 @@ class Program
     {
         Console.WriteLine("=== Current Configuration ===");
         Console.WriteLine();
-        
+
         var hasApiKey = await configService.HasApiKeyAsync();
         var configPath = configService.GetConfigFilePath();
-        
+
         Console.WriteLine($"Configuration file: {configPath}");
         Console.WriteLine($"File exists: {File.Exists(configPath)}");
         Console.WriteLine($"API key configured: {(hasApiKey ? "Yes" : "No")}");
-        
+
         if (hasApiKey)
         {
             var apiKey = await configService.GetApiKeyAsync();
@@ -402,19 +403,21 @@ class Program
         // Show environment variable status
         var envApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         Console.WriteLine(
-            $"Environment variable OPENAI_API_KEY: {(!string.IsNullOrEmpty(envApiKey) ? "Set" : "Not set")}");
+            $"Environment variable OPENAI_API_KEY: {(!string.IsNullOrEmpty(envApiKey) ? "Set" : "Not set")}"
+        );
     }
 
     private static async Task TestApiKey(ConfigurationService configService)
     {
         Console.WriteLine("=== Test API Key ===");
         Console.WriteLine();
-        
+
         using var loggerFactory = LoggerFactory.Create(builder =>
-            builder.AddConsole().SetMinimumLevel(MsLogLevel.Warning));
-        
+            builder.AddConsole().SetMinimumLevel(MsLogLevel.Warning)
+        );
+
         var logger = loggerFactory.CreateLogger<EmbeddingService>();
-        
+
         var embeddingService = new EmbeddingService(logger, configService);
 
         try
@@ -435,7 +438,8 @@ class Program
                     Id = Guid.NewGuid().ToString(),
                     Timestamp = DateTime.UtcNow,
                     Level = Models.LogLevel.Info,
-                    Message = "Test log entry for API validation",                    Service = "test-service",
+                    Message = "Test log entry for API validation",
+                    Service = "test-service",
                 },
             };
 
@@ -445,7 +449,8 @@ class Program
             {
                 Console.WriteLine("✓ API key is working correctly!");
                 Console.WriteLine(
-                    $"Generated embedding with {testEntries[0].Embedding.Length} dimensions");
+                    $"Generated embedding with {testEntries[0].Embedding.Length} dimensions"
+                );
             }
             else
             {
@@ -466,7 +471,7 @@ class Program
     {
         Console.WriteLine("=== Remove Configuration ===");
         Console.WriteLine();
-        
+
         var hasApiKey = await configService.HasApiKeyAsync();
         if (!hasApiKey)
         {
@@ -474,8 +479,9 @@ class Program
             return;
         }
 
-        Console.Write("Are you sure you want to remove the saved configuration? (y/N): ");        var confirm = Console.ReadLine()?.Trim().ToLowerInvariant();
-        
+        Console.Write("Are you sure you want to remove the saved configuration? (y/N): ");
+        var confirm = Console.ReadLine()?.Trim().ToLowerInvariant();
+
         if (confirm != "y" && confirm != "yes")
         {
             Console.WriteLine("Configuration removal cancelled.");

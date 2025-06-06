@@ -114,7 +114,7 @@ public enum AnomalyType
     Security,
     Correlation,
     Volume,
-    Other
+    Other,
 }
 
 /// <summary>
@@ -125,7 +125,7 @@ public enum AnomalySeverity
     Low = 1,
     Medium = 2,
     High = 3,
-    Critical = 4
+    Critical = 4,
 }
 
 /// <summary>

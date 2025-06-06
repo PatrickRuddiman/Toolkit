@@ -47,7 +47,7 @@ public abstract class BaseLogParser : ILogParser
             "WARN" or "WRN" or "WARNING" => LogLevel.Warning,
             "ERROR" or "ERR" => LogLevel.Error,
             "FATAL" or "CRITICAL" or "CRIT" => LogLevel.Critical,
-            _ => LogLevel.Info
+            _ => LogLevel.Info,
         };
     }
 
@@ -66,12 +66,20 @@ public abstract class BaseLogParser : ILogParser
             "MM/dd/yyyy HH:mm:ss",
             "dd/MM/yyyy HH:mm:ss",
             "yyyy-MM-ddTHH:mm:ssZ",
-            "yyyy-MM-ddTHH:mm:ss"
+            "yyyy-MM-ddTHH:mm:ss",
         };
 
         foreach (var format in formats)
         {
-            if (DateTime.TryParseExact(timestampText, format, null, System.Globalization.DateTimeStyles.AssumeUniversal, out var result))
+            if (
+                DateTime.TryParseExact(
+                    timestampText,
+                    format,
+                    null,
+                    System.Globalization.DateTimeStyles.AssumeUniversal,
+                    out var result
+                )
+            )
             {
                 return result.ToUniversalTime();
             }

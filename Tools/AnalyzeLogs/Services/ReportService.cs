@@ -1,6 +1,6 @@
+using System.Text;
 using AnalyzeLogs.Models;
 using Microsoft.Extensions.Logging;
-using System.Text;
 
 namespace AnalyzeLogs.Services;
 
@@ -19,9 +19,15 @@ public class ReportService
     /// <summary>
     /// Generates a comprehensive analysis report
     /// </summary>
-    public async Task<string> GenerateReportAsync(AnalysisResult analysisResult, List<string> logFiles)
+    public async Task<string> GenerateReportAsync(
+        AnalysisResult analysisResult,
+        List<string> logFiles
+    )
     {
-        _logger.LogInformation("Generating analysis report for {FileCount} log files", logFiles.Count);
+        _logger.LogInformation(
+            "Generating analysis report for {FileCount} log files",
+            logFiles.Count
+        );
 
         var report = new StringBuilder();
 
@@ -68,7 +74,11 @@ public class ReportService
         return report.ToString();
     }
 
-    private void GenerateSummarySection(StringBuilder report, AnalysisResult analysisResult, List<string> logFiles)
+    private void GenerateSummarySection(
+        StringBuilder report,
+        AnalysisResult analysisResult,
+        List<string> logFiles
+    )
     {
         report.AppendLine("SUMMARY");
         report.AppendLine("-".PadRight(40, '-'));
@@ -117,7 +127,9 @@ public class ReportService
 
         report.AppendLine($"Start Time: {analysisResult.StartTime:yyyy-MM-dd HH:mm:ss} UTC");
         report.AppendLine($"End Time: {analysisResult.EndTime:yyyy-MM-dd HH:mm:ss} UTC");
-        report.AppendLine($"Duration: {(analysisResult.EndTime - analysisResult.StartTime).TotalHours:F1} hours");
+        report.AppendLine(
+            $"Duration: {(analysisResult.EndTime - analysisResult.StartTime).TotalHours:F1} hours"
+        );
         report.AppendLine();
     }
 
@@ -140,19 +152,19 @@ public class ReportService
             report.AppendLine($"  Total Entries: {metrics.TotalRequests:N0}");
             report.AppendLine($"  Error Count: {metrics.ErrorCount:N0}");
             report.AppendLine($"  Error Rate: {metrics.ErrorRate:P2}");
-            
+
             if (metrics.AverageResponseTime.HasValue)
             {
                 report.AppendLine($"  Avg Response Time: {metrics.AverageResponseTime.Value:F0}ms");
             }
-            
+
             if (metrics.P95ResponseTime.HasValue)
             {
                 report.AppendLine($"  95th Percentile: {metrics.P95ResponseTime.Value:F0}ms");
             }
-            
+
             report.AppendLine($"  Request Rate: {metrics.RequestRate:F1} requests/min");
-            
+
             if (metrics.UniqueUsers > 0)
             {
                 report.AppendLine($"  Unique Users: {metrics.UniqueUsers:N0}");
@@ -198,37 +210,45 @@ public class ReportService
         }
 
         // Group anomalies by severity
-        var anomaliesBySeverity = analysisResult.Anomalies
-            .GroupBy(a => a.Severity)
+        var anomaliesBySeverity = analysisResult
+            .Anomalies.GroupBy(a => a.Severity)
             .OrderByDescending(g => g.Key);
 
         foreach (var severityGroup in anomaliesBySeverity)
         {
-            report.AppendLine($"{severityGroup.Key.ToString().ToUpper()} SEVERITY ({severityGroup.Count()} anomalies):");
+            report.AppendLine(
+                $"{severityGroup.Key.ToString().ToUpper()} SEVERITY ({severityGroup.Count()} anomalies):"
+            );
             report.AppendLine();
 
             var anomalies = severityGroup.OrderBy(a => a.Timestamp).Take(10);
             foreach (var anomaly in anomalies)
             {
-                report.AppendLine($"• [{anomaly.Timestamp:HH:mm:ss}] {anomaly.Service} - {anomaly.Type}");
+                report.AppendLine(
+                    $"• [{anomaly.Timestamp:HH:mm:ss}] {anomaly.Service} - {anomaly.Type}"
+                );
                 report.AppendLine($"  {anomaly.Description}");
-                
+
                 if (!string.IsNullOrEmpty(anomaly.Recommendation))
                 {
                     report.AppendLine($"  Recommendation: {anomaly.Recommendation}");
                 }
-                
+
                 if (anomaly.RelatedLogIds.Any())
                 {
-                    report.AppendLine($"  Related logs: {string.Join(", ", anomaly.RelatedLogIds.Take(3))}");
+                    report.AppendLine(
+                        $"  Related logs: {string.Join(", ", anomaly.RelatedLogIds.Take(3))}"
+                    );
                 }
-                
+
                 report.AppendLine();
             }
 
             if (severityGroup.Count() > 10)
             {
-                report.AppendLine($"  ... and {severityGroup.Count() - 10} more {severityGroup.Key.ToString().ToLower()} severity anomalies");
+                report.AppendLine(
+                    $"  ... and {severityGroup.Count() - 10} more {severityGroup.Key.ToString().ToLower()} severity anomalies"
+                );
                 report.AppendLine();
             }
         }
@@ -247,8 +267,8 @@ public class ReportService
             return;
         }
 
-        var significantCorrelations = analysisResult.Correlations
-            .Where(c => c.Services.Count > 1)
+        var significantCorrelations = analysisResult
+            .Correlations.Where(c => c.Services.Count > 1)
             .OrderByDescending(c => c.Services.Count)
             .Take(20);
 
@@ -261,24 +281,29 @@ public class ReportService
             report.AppendLine($"  Start: {correlation.StartTime:HH:mm:ss.fff}");
             report.AppendLine($"  End: {correlation.EndTime:HH:mm:ss.fff}");
             report.AppendLine($"  Log Entries: {correlation.Entries.Count}");
-            
+
             // Show first few log entries
             var firstLogs = correlation.Entries.OrderBy(e => e.Timestamp).Take(3);
             foreach (var log in firstLogs)
             {
-                report.AppendLine($"    [{log.Timestamp:HH:mm:ss}] {log.Service}: {TruncateMessage(log.Message, 80)}");
+                report.AppendLine(
+                    $"    [{log.Timestamp:HH:mm:ss}] {log.Service}: {TruncateMessage(log.Message, 80)}"
+                );
             }
-            
+
             if (correlation.Entries.Count > 3)
             {
                 report.AppendLine($"    ... and {correlation.Entries.Count - 3} more entries");
             }
-            
+
             report.AppendLine();
         }
     }
 
-    private void GenerateEmbeddingOutliersSection(StringBuilder report, AnalysisResult analysisResult)
+    private void GenerateEmbeddingOutliersSection(
+        StringBuilder report,
+        AnalysisResult analysisResult
+    )
     {
         report.AppendLine("SEMANTIC OUTLIERS");
         report.AppendLine("-".PadRight(40, '-'));
@@ -295,7 +320,9 @@ public class ReportService
 
         if (analysisResult.EmbeddingOutliers.Count > 10)
         {
-            report.AppendLine($"... and {analysisResult.EmbeddingOutliers.Count - 10} more outliers");
+            report.AppendLine(
+                $"... and {analysisResult.EmbeddingOutliers.Count - 10} more outliers"
+            );
         }
 
         report.AppendLine();
@@ -325,21 +352,23 @@ public class ReportService
 
     private string DetermineHealthStatus(AnalysisResult analysisResult)
     {
-        var criticalAnomalies = analysisResult.Anomalies.Count(a => a.Severity == AnomalySeverity.Critical);
+        var criticalAnomalies = analysisResult.Anomalies.Count(a =>
+            a.Severity == AnomalySeverity.Critical
+        );
         var highAnomalies = analysisResult.Anomalies.Count(a => a.Severity == AnomalySeverity.High);
 
         if (criticalAnomalies > 0)
             return "🔴 CRITICAL - Immediate attention required";
-        
+
         if (highAnomalies > 5)
             return "🟠 DEGRADED - Multiple high-severity issues detected";
-        
+
         if (highAnomalies > 0)
             return "🟡 WARNING - Some issues detected";
-        
+
         if (analysisResult.Anomalies.Any())
             return "🟢 HEALTHY - Minor issues detected";
-        
+
         return "✅ EXCELLENT - No issues detected";
     }
 
@@ -349,13 +378,13 @@ public class ReportService
         {
             var fileInfo = new FileInfo(filePath);
             var sizeInBytes = fileInfo.Length;
-            
+
             if (sizeInBytes > 1024 * 1024)
                 return $"{sizeInBytes / (1024.0 * 1024.0):F1} MB";
-            
+
             if (sizeInBytes > 1024)
                 return $"{sizeInBytes / 1024.0:F1} KB";
-            
+
             return $"{sizeInBytes} bytes";
         }
         catch
@@ -368,10 +397,10 @@ public class ReportService
     {
         if (string.IsNullOrEmpty(message))
             return string.Empty;
-        
+
         if (message.Length <= maxLength)
             return message;
-        
+
         return message.Substring(0, maxLength - 3) + "...";
     }
 }

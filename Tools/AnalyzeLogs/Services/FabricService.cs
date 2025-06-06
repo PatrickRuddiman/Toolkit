@@ -91,7 +91,11 @@ public class FabricService
     /// <summary>
     /// Generates summary and recommendations using Fabric
     /// </summary>
-    public async Task<string> GenerateSummaryAsync(List<ServiceMetrics> metrics, List<Anomaly> anomalies, Configuration config)
+    public async Task<string> GenerateSummaryAsync(
+        List<ServiceMetrics> metrics,
+        List<Anomaly> anomalies,
+        Configuration config
+    )
     {
         try
         {
@@ -126,7 +130,7 @@ public class FabricService
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
             };
 
             using var process = new Process { StartInfo = processInfo };
@@ -145,8 +149,11 @@ public class FabricService
 
             if (process.ExitCode != 0)
             {
-                _logger.LogWarning("Fabric command failed with exit code {ExitCode}: {Error}", 
-                    process.ExitCode, error);
+                _logger.LogWarning(
+                    "Fabric command failed with exit code {ExitCode}: {Error}",
+                    process.ExitCode,
+                    error
+                );
                 return null;
             }
 
@@ -165,10 +172,12 @@ public class FabricService
     private string BuildAnomalyDetectionPrompt(LogChunk chunk)
     {
         var prompt = new StringBuilder();
-        
+
         prompt.AppendLine("# Log Anomaly Detection");
         prompt.AppendLine();
-        prompt.AppendLine("Analyze the following log entries for anomalies, errors, and unusual patterns.");
+        prompt.AppendLine(
+            "Analyze the following log entries for anomalies, errors, and unusual patterns."
+        );
         prompt.AppendLine("For each anomaly found, provide:");
         prompt.AppendLine("- Type (Error, Pattern, Performance, Security, etc.)");
         prompt.AppendLine("- Severity (Low, Medium, High, Critical)");
@@ -181,7 +190,9 @@ public class FabricService
 
         foreach (var entry in chunk.Entries.Take(50)) // Limit for token management
         {
-            prompt.AppendLine($"[{entry.Timestamp:yyyy-MM-dd HH:mm:ss}] [{entry.Level}] [{entry.Service}] {entry.Message}");
+            prompt.AppendLine(
+                $"[{entry.Timestamp:yyyy-MM-dd HH:mm:ss}] [{entry.Level}] [{entry.Service}] {entry.Message}"
+            );
         }
 
         return prompt.ToString();
@@ -193,12 +204,16 @@ public class FabricService
     private string BuildCoherenceAnalysisPrompt(LogChunk chunk)
     {
         var prompt = new StringBuilder();
-        
+
         prompt.AppendLine("# Log Coherence Analysis");
         prompt.AppendLine();
-        prompt.AppendLine("Analyze the following sequence of log entries for logical consistency and completeness.");
+        prompt.AppendLine(
+            "Analyze the following sequence of log entries for logical consistency and completeness."
+        );
         prompt.AppendLine("Look for:");
-        prompt.AppendLine("- Missing expected events (requests without responses, incomplete transactions)");
+        prompt.AppendLine(
+            "- Missing expected events (requests without responses, incomplete transactions)"
+        );
         prompt.AppendLine("- Events out of order");
         prompt.AppendLine("- Gaps in the flow that might indicate problems");
         prompt.AppendLine();
@@ -208,8 +223,12 @@ public class FabricService
         var sortedEntries = chunk.Entries.OrderBy(e => e.Timestamp).ToList();
         foreach (var entry in sortedEntries.Take(100)) // More entries for coherence analysis
         {
-            var correlationInfo = !string.IsNullOrEmpty(entry.CorrelationId) ? $"[{entry.CorrelationId}]" : "";
-            prompt.AppendLine($"[{entry.Timestamp:yyyy-MM-dd HH:mm:ss}] [{entry.Level}] [{entry.Service}] {correlationInfo} {entry.Message}");
+            var correlationInfo = !string.IsNullOrEmpty(entry.CorrelationId)
+                ? $"[{entry.CorrelationId}]"
+                : "";
+            prompt.AppendLine(
+                $"[{entry.Timestamp:yyyy-MM-dd HH:mm:ss}] [{entry.Level}] [{entry.Service}] {correlationInfo} {entry.Message}"
+            );
         }
 
         return prompt.ToString();
@@ -221,11 +240,13 @@ public class FabricService
     private string BuildTaggingPrompt(LogChunk chunk)
     {
         var prompt = new StringBuilder();
-        
+
         prompt.AppendLine("# Log Entry Tagging");
         prompt.AppendLine();
         prompt.AppendLine("Assign relevant tags to each log entry based on content and context.");
-        prompt.AppendLine("Use tags like: database, authentication, network, performance, error, warning, api, etc.");
+        prompt.AppendLine(
+            "Use tags like: database, authentication, network, performance, error, warning, api, etc."
+        );
         prompt.AppendLine("Format response as: LineNumber: tag1, tag2, tag3");
         prompt.AppendLine();
         prompt.AppendLine("## Log Entries:");
@@ -246,11 +267,13 @@ public class FabricService
     private string BuildSummaryPrompt(List<ServiceMetrics> metrics, List<Anomaly> anomalies)
     {
         var prompt = new StringBuilder();
-        
+
         prompt.AppendLine("# Log Analysis Summary");
         prompt.AppendLine();
         prompt.AppendLine("Generate a comprehensive summary of the log analysis results.");
-        prompt.AppendLine("Include key insights, system health assessment, and actionable recommendations.");
+        prompt.AppendLine(
+            "Include key insights, system health assessment, and actionable recommendations."
+        );
         prompt.AppendLine();
         prompt.AppendLine("## Service Metrics:");
         prompt.AppendLine();
@@ -281,10 +304,10 @@ public class FabricService
     private List<Anomaly> ParseAnomalyResponse(string response, LogChunk chunk)
     {
         var anomalies = new List<Anomaly>();
-        
+
         // Simple parsing - in a real implementation, you'd want more robust parsing
         var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        
+
         foreach (var line in lines)
         {
             if (line.Contains("Anomaly:") || line.Contains("Error:") || line.Contains("Issue:"))
@@ -296,9 +319,9 @@ public class FabricService
                     Description = line.Trim(),
                     Timestamp = chunk.StartTime,
                     Confidence = 0.8,
-                    RelatedEntries = chunk.Entries.Take(5).ToList()
+                    RelatedEntries = chunk.Entries.Take(5).ToList(),
                 };
-                
+
                 anomalies.Add(anomaly);
             }
         }
@@ -312,9 +335,9 @@ public class FabricService
     private List<Anomaly> ParseCoherenceResponse(string response, LogChunk chunk)
     {
         var coherenceIssues = new List<Anomaly>();
-        
+
         var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        
+
         foreach (var line in lines)
         {
             if (line.Contains("missing") || line.Contains("incomplete") || line.Contains("gap"))
@@ -325,9 +348,9 @@ public class FabricService
                     Severity = AnomalySeverity.Medium,
                     Description = line.Trim(),
                     Timestamp = chunk.StartTime,
-                    Confidence = 0.7
+                    Confidence = 0.7,
                 };
-                
+
                 coherenceIssues.Add(anomaly);
             }
         }
@@ -341,14 +364,18 @@ public class FabricService
     private void ParseTaggingResponse(string response, LogChunk chunk)
     {
         var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        
+
         foreach (var line in lines)
         {
             var parts = line.Split(':', 2);
             if (parts.Length == 2 && int.TryParse(parts[0].Trim(), out var lineNumber))
             {
-                var tags = parts[1].Split(',').Select(t => t.Trim()).Where(t => !string.IsNullOrEmpty(t)).ToList();
-                
+                var tags = parts[1]
+                    .Split(',')
+                    .Select(t => t.Trim())
+                    .Where(t => !string.IsNullOrEmpty(t))
+                    .ToList();
+
                 if (lineNumber > 0 && lineNumber <= chunk.Entries.Count)
                 {
                     chunk.Entries[lineNumber - 1].Tags.AddRange(tags);

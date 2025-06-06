@@ -1,5 +1,5 @@
-using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 
 namespace AnalyzeLogs.Services;
 
@@ -34,8 +34,10 @@ public class FileIngestionService
         try
         {
             // Handle absolute paths vs relative paths
-            var basePath = Path.IsPathRooted(pattern) ? string.Empty : Directory.GetCurrentDirectory();
-            
+            var basePath = Path.IsPathRooted(pattern)
+                ? string.Empty
+                : Directory.GetCurrentDirectory();
+
             if (string.IsNullOrEmpty(basePath))
             {
                 // For absolute patterns, extract the directory part
@@ -43,7 +45,9 @@ public class FileIngestionService
                 if (!string.IsNullOrEmpty(directoryPart))
                 {
                     basePath = directoryPart;
-                    pattern = pattern.Substring(directoryPart.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                    pattern = pattern
+                        .Substring(directoryPart.Length)
+                        .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                 }
                 else
                 {
@@ -51,22 +55,32 @@ public class FileIngestionService
                 }
             }
 
-            _logger.LogInformation("Searching for files matching pattern '{Pattern}' in base path '{BasePath}'", 
-                pattern, basePath);
+            _logger.LogInformation(
+                "Searching for files matching pattern '{Pattern}' in base path '{BasePath}'",
+                pattern,
+                basePath
+            );
 
             // Simple glob pattern matching (supports * and ? wildcards)
-            var regexPattern = "^" + Regex.Escape(pattern)
-                .Replace(@"\*\*", "DOUBLESTAR") // Handle ** first
-                .Replace(@"\*", "[^/\\\\]*")     // * matches anything except path separators
-                .Replace("DOUBLESTAR", ".*")     // ** matches anything including path separators
-                .Replace(@"\?", "[^/\\\\]") + "$"; // ? matches single char except path separators
-            
+            var regexPattern =
+                "^"
+                + Regex
+                    .Escape(pattern)
+                    .Replace(@"\*\*", "DOUBLESTAR") // Handle ** first
+                    .Replace(@"\*", "[^/\\\\]*") // * matches anything except path separators
+                    .Replace("DOUBLESTAR", ".*") // ** matches anything including path separators
+                    .Replace(@"\?", "[^/\\\\]")
+                + "$"; // ? matches single char except path separators
+
             var regex = new Regex(regexPattern, RegexOptions.IgnoreCase);
-            
+
             // If pattern contains directory separators, we need to search recursively
-            var searchOption = pattern.Contains("**") || pattern.Contains(Path.DirectorySeparatorChar) || pattern.Contains(Path.AltDirectorySeparatorChar)
-                ? SearchOption.AllDirectories 
-                : SearchOption.TopDirectoryOnly;
+            var searchOption =
+                pattern.Contains("**")
+                || pattern.Contains(Path.DirectorySeparatorChar)
+                || pattern.Contains(Path.AltDirectorySeparatorChar)
+                    ? SearchOption.AllDirectories
+                    : SearchOption.TopDirectoryOnly;
 
             // Get all files in the search area
             var allFiles = Directory.EnumerateFiles(basePath, "*", searchOption);
@@ -75,10 +89,10 @@ public class FileIngestionService
             await foreach (var file in ToAsyncEnumerable(allFiles))
             {
                 var relativePath = Path.GetRelativePath(basePath, file);
-                
+
                 // Normalize path separators for glob matching
                 var normalizedPath = relativePath.Replace(Path.DirectorySeparatorChar, '/');
-                
+
                 if (regex.IsMatch(normalizedPath) || regex.IsMatch(relativePath))
                 {
                     files.Add(file);
@@ -109,10 +123,15 @@ public class FileIngestionService
                 if (File.Exists(filePath))
                 {
                     // Try to read the first few bytes to ensure it's readable
-                    using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    using var fileStream = new FileStream(
+                        filePath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.Read
+                    );
                     var buffer = new byte[1024];
                     await fileStream.ReadAsync(buffer, 0, buffer.Length);
-                    
+
                     validFiles.Add(filePath);
                     _logger.LogDebug("Validated file: {FilePath}", filePath);
                 }
@@ -127,8 +146,11 @@ public class FileIngestionService
             }
         }
 
-        _logger.LogInformation("Validated {ValidCount} out of {TotalCount} files", 
-            validFiles.Count, filePaths.Count());
+        _logger.LogInformation(
+            "Validated {ValidCount} out of {TotalCount} files",
+            validFiles.Count,
+            filePaths.Count()
+        );
 
         return validFiles;
     }
@@ -157,8 +179,12 @@ public class FileIngestionService
         });
 
         var totalSize = fileInfos.Values.Sum(f => f.Length);
-        _logger.LogInformation("Total size of {FileCount} files: {TotalSize:N0} bytes ({TotalSizeMB:N1} MB)", 
-            fileInfos.Count, totalSize, totalSize / (1024.0 * 1024.0));
+        _logger.LogInformation(
+            "Total size of {FileCount} files: {TotalSize:N0} bytes ({TotalSizeMB:N1} MB)",
+            fileInfos.Count,
+            totalSize,
+            totalSize / (1024.0 * 1024.0)
+        );
 
         return fileInfos;
     }
@@ -176,9 +202,13 @@ public class FileIngestionService
         if (lastSeparatorIndex > 0)
         {
             var directoryPart = pattern.Substring(0, lastSeparatorIndex);
-            
+
             // Make sure it's a valid directory (doesn't contain glob patterns)
-            if (!directoryPart.Contains('*') && !directoryPart.Contains('?') && Directory.Exists(directoryPart))
+            if (
+                !directoryPart.Contains('*')
+                && !directoryPart.Contains('?')
+                && Directory.Exists(directoryPart)
+            )
             {
                 return directoryPart;
             }
@@ -193,7 +223,7 @@ public class FileIngestionService
     private static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(IEnumerable<T> enumerable)
     {
         await Task.Yield(); // Make it truly async
-        
+
         foreach (var item in enumerable)
         {
             yield return item;
@@ -212,15 +242,16 @@ public class FileIngestionService
         var totalSizeMB = totalSize / (1024.0 * 1024.0);
 
         var summary = $"Found {fileInfos.Count} file(s) totaling {totalSizeMB:N1} MB:\n";
-        
+
         foreach (var kvp in fileInfos.OrderBy(x => x.Key))
         {
             var filePath = kvp.Key;
             var fileInfo = kvp.Value;
             var fileName = Path.GetFileName(filePath);
             var fileSizeMB = fileInfo.Length / (1024.0 * 1024.0);
-            
-            summary += $"  - {fileName} ({fileSizeMB:N1} MB, modified {fileInfo.LastWriteTime:yyyy-MM-dd HH:mm:ss})\n";
+
+            summary +=
+                $"  - {fileName} ({fileSizeMB:N1} MB, modified {fileInfo.LastWriteTime:yyyy-MM-dd HH:mm:ss})\n";
         }
 
         return summary.TrimEnd();

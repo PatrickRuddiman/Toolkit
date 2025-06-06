@@ -32,7 +32,7 @@ public partial class JsonLogParser : BaseLogParser
             {
                 SourceFile = sourceFile,
                 LineNumber = lineNumber,
-                RawContent = logLine
+                RawContent = logLine,
             };
 
             // Parse common fields
@@ -125,15 +125,18 @@ public partial class JsonLogParser : BaseLogParser
             // Parse response time
             if (root.TryGetProperty("responseTime", out var responseProp))
             {
-                entry.ResponseTimeMs = ParseDouble(responseProp.GetString()) ?? responseProp.GetDouble();
+                entry.ResponseTimeMs =
+                    ParseDouble(responseProp.GetString()) ?? responseProp.GetDouble();
             }
             else if (root.TryGetProperty("response_time", out var response2Prop))
             {
-                entry.ResponseTimeMs = ParseDouble(response2Prop.GetString()) ?? response2Prop.GetDouble();
+                entry.ResponseTimeMs =
+                    ParseDouble(response2Prop.GetString()) ?? response2Prop.GetDouble();
             }
             else if (root.TryGetProperty("duration", out var durationProp))
             {
-                entry.ResponseTimeMs = ParseDouble(durationProp.GetString()) ?? durationProp.GetDouble();
+                entry.ResponseTimeMs =
+                    ParseDouble(durationProp.GetString()) ?? durationProp.GetDouble();
             }
 
             // Store additional data
@@ -149,7 +152,7 @@ public partial class JsonLogParser : BaseLogParser
                         JsonValueKind.True => true,
                         JsonValueKind.False => false,
                         JsonValueKind.Null => null,
-                        _ => property.Value.GetRawText()
+                        _ => property.Value.GetRawText(),
                     };
                 }
             }
@@ -166,12 +169,28 @@ public partial class JsonLogParser : BaseLogParser
     {
         return name.ToLowerInvariant() switch
         {
-            "timestamp" or "@timestamp" or "time" or "level" or "severity" or
-            "message" or "msg" or "service" or "source" or "logger" or
-            "correlationid" or "correlation_id" or "traceid" or "trace_id" or
-            "userid" or "user_id" or "status" or "status_code" or
-            "responsetime" or "response_time" or "duration" => true,
-            _ => false
+            "timestamp"
+            or "@timestamp"
+            or "time"
+            or "level"
+            or "severity"
+            or "message"
+            or "msg"
+            or "service"
+            or "source"
+            or "logger"
+            or "correlationid"
+            or "correlation_id"
+            or "traceid"
+            or "trace_id"
+            or "userid"
+            or "user_id"
+            or "status"
+            or "status_code"
+            or "responsetime"
+            or "response_time"
+            or "duration" => true,
+            _ => false,
         };
     }
 }
@@ -181,10 +200,14 @@ public partial class JsonLogParser : BaseLogParser
 /// </summary>
 public partial class StructuredTextLogParser : BaseLogParser
 {
-    [GeneratedRegex(@"^\[(\w+)\]\s*(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[.\d]*(?:Z|[+-]\d{2}:\d{2})?)\s*[-–]\s*(.+)$")]
+    [GeneratedRegex(
+        @"^\[(\w+)\]\s*(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[.\d]*(?:Z|[+-]\d{2}:\d{2})?)\s*[-–]\s*(.+)$"
+    )]
     private static partial Regex StructuredLogRegex();
 
-    [GeneratedRegex(@"^(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[.\d]*(?:Z|[+-]\d{2}:\d{2})?)\s+(\w+)\s+(.+)$")]
+    [GeneratedRegex(
+        @"^(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[.\d]*(?:Z|[+-]\d{2}:\d{2})?)\s+(\w+)\s+(.+)$"
+    )]
     private static partial Regex TimestampLevelMessageRegex();
 
     public override int Priority => 80;
@@ -194,7 +217,8 @@ public partial class StructuredTextLogParser : BaseLogParser
         if (string.IsNullOrWhiteSpace(logLine))
             return false;
 
-        return StructuredLogRegex().IsMatch(logLine) || TimestampLevelMessageRegex().IsMatch(logLine);
+        return StructuredLogRegex().IsMatch(logLine)
+            || TimestampLevelMessageRegex().IsMatch(logLine);
     }
 
     public override LogEntry? Parse(string logLine, string sourceFile, int lineNumber)
@@ -203,7 +227,7 @@ public partial class StructuredTextLogParser : BaseLogParser
         {
             SourceFile = sourceFile,
             LineNumber = lineNumber,
-            RawContent = logLine
+            RawContent = logLine,
         };
 
         // Try structured format: [LEVEL] timestamp - message
@@ -235,7 +259,9 @@ public partial class StructuredTextLogParser : BaseLogParser
 /// </summary>
 public partial class AccessLogParser : BaseLogParser
 {
-    [GeneratedRegex(@"^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+""(\S+)\s+(\S+)\s+\S+""\s+(\d+)\s+(\d+)\s*""([^""]*)""\s*""([^""]*)""")]
+    [GeneratedRegex(
+        @"^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+""(\S+)\s+(\S+)\s+\S+""\s+(\d+)\s+(\d+)\s*""([^""]*)""\s*""([^""]*)"""
+    )]
     private static partial Regex ApacheLogRegex();
 
     public override int Priority => 70;
@@ -259,7 +285,7 @@ public partial class AccessLogParser : BaseLogParser
             SourceFile = sourceFile,
             LineNumber = lineNumber,
             RawContent = logLine,
-            Service = "web-server"
+            Service = "web-server",
         };
 
         // Parse timestamp (Apache format: [25/Dec/2019:10:36:01 +0000])
@@ -319,10 +345,15 @@ public partial class AccessLogParser : BaseLogParser
     private DateTime ParseApacheTimestamp(string timestamp)
     {
         // Format: 25/Dec/2019:10:36:01 +0000
-        if (DateTime.TryParseExact(timestamp, "dd/MMM/yyyy:HH:mm:ss zzz", 
-            System.Globalization.CultureInfo.InvariantCulture, 
-            System.Globalization.DateTimeStyles.AssumeUniversal, 
-            out var result))
+        if (
+            DateTime.TryParseExact(
+                timestamp,
+                "dd/MMM/yyyy:HH:mm:ss zzz",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal,
+                out var result
+            )
+        )
         {
             return result.ToUniversalTime();
         }
@@ -356,7 +387,7 @@ public partial class UnstructuredLogParser : BaseLogParser
             SourceFile = sourceFile,
             LineNumber = lineNumber,
             RawContent = logLine,
-            Message = logLine
+            Message = logLine,
         };
 
         // Try to extract timestamp
@@ -380,7 +411,11 @@ public partial class UnstructuredLogParser : BaseLogParser
         {
             // Guess level based on keywords
             var lowerMessage = logLine.ToLowerInvariant();
-            if (lowerMessage.Contains("error") || lowerMessage.Contains("exception") || lowerMessage.Contains("fail"))
+            if (
+                lowerMessage.Contains("error")
+                || lowerMessage.Contains("exception")
+                || lowerMessage.Contains("fail")
+            )
             {
                 entry.Level = LogLevel.Error;
             }
