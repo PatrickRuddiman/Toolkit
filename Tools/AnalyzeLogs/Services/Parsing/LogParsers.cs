@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using AnalyzeLogs.Models;
 using AnalyzeLogs.Services.Parsing;
+using Microsoft.Extensions.Logging;
 
 namespace AnalyzeLogs.Services.Parsing;
 
@@ -10,6 +11,8 @@ namespace AnalyzeLogs.Services.Parsing;
 /// </summary>
 public partial class JsonLogParser : BaseLogParser
 {
+    public JsonLogParser(ILogger<JsonLogParser> logger) : base(logger) { }
+
     public override int Priority => 100;
 
     public override bool CanParse(string logLine)
@@ -200,6 +203,8 @@ public partial class JsonLogParser : BaseLogParser
 /// </summary>
 public partial class StructuredTextLogParser : BaseLogParser
 {
+    public StructuredTextLogParser(ILogger<StructuredTextLogParser> logger) : base(logger) { }
+
     [GeneratedRegex(
         @"^\[(\w+)\]\s*(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[.\d]*(?:Z|[+-]\d{2}:\d{2})?)\s*[-–]\s*(.+)$"
     )]
@@ -259,6 +264,8 @@ public partial class StructuredTextLogParser : BaseLogParser
 /// </summary>
 public partial class AccessLogParser : BaseLogParser
 {
+    public AccessLogParser(ILogger<AccessLogParser> logger) : base(logger) { }
+
     [GeneratedRegex(
         @"^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+""(\S+)\s+(\S+)\s+\S+""\s+(\d+)\s+(\d+)\s*""([^""]*)""\s*""([^""]*)"""
     )]
@@ -328,15 +335,15 @@ public partial class AccessLogParser : BaseLogParser
         // Set log level based on status code
         if (entry.HttpStatus >= 500)
         {
-            entry.Level = LogLevel.Error;
+            entry.Level = Models.LogLevel.Error;
         }
         else if (entry.HttpStatus >= 400)
         {
-            entry.Level = LogLevel.Warning;
+            entry.Level = Models.LogLevel.Warning;
         }
         else
         {
-            entry.Level = LogLevel.Info;
+            entry.Level = Models.LogLevel.Info;
         }
 
         return entry;
@@ -367,6 +374,8 @@ public partial class AccessLogParser : BaseLogParser
 /// </summary>
 public partial class UnstructuredLogParser : BaseLogParser
 {
+    public UnstructuredLogParser(ILogger<UnstructuredLogParser> logger) : base(logger) { }
+
     [GeneratedRegex(@"\b(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[.\d]*(?:Z|[+-]\d{2}:\d{2})?)\b")]
     private static partial Regex TimestampRegex();
 
@@ -417,18 +426,148 @@ public partial class UnstructuredLogParser : BaseLogParser
                 || lowerMessage.Contains("fail")
             )
             {
-                entry.Level = LogLevel.Error;
+                entry.Level = Models.LogLevel.Error;
             }
             else if (lowerMessage.Contains("warn"))
             {
-                entry.Level = LogLevel.Warning;
+                entry.Level = Models.LogLevel.Warning;
             }
             else
             {
-                entry.Level = LogLevel.Info;
+                entry.Level = Models.LogLevel.Info;
             }
         }
 
         return entry;
+    }
+}
+
+/// <summary>
+/// AI-powered parser for complex unstructured logs using OpenAI
+/// </summary>
+public class AiLogParser : BaseLogParser
+{
+    private readonly OpenAIService _openAiService;
+    private static readonly string PatternPath = Path.Combine(
+        "patterns",
+        "parse_log_line",
+        "system.md"
+    );
+
+    public AiLogParser(OpenAIService openAiService, ILogger<AiLogParser> logger) : base(logger)
+    {
+        _openAiService = openAiService;
+    }
+
+    public override int Priority => 50; // Higher than unstructured, lower than regex parsers
+
+    public override bool CanParse(string logLine)
+    {
+        if (string.IsNullOrWhiteSpace(logLine))
+            return false;
+
+        // Only use AI parser for complex logs that likely need intelligence
+        // Check for patterns that suggest structured data that regex parsers might miss
+        var complexPatterns = new[]
+        {
+            @"(?i)\b(exception|stacktrace|caused by)\b", // Exception traces
+            @"\{[^}]*[,:].*\}", // Embedded JSON-like structures
+            @"(?i)\b(correlation|trace|span)[-_]?id\s*[:=]\s*[a-f0-9\-]+", // Tracing IDs
+            @"\b\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}.*\b(ERROR|WARN|INFO|DEBUG)\b", // Timestamps with levels
+            @"(?i)\b(user|customer|session)[-_]?id\s*[:=]\s*\w+", // User identifiers
+            @"\b(?:GET|POST|PUT|DELETE|PATCH)\s+\/\S+.*\b\d{3}\b", // HTTP requests with status
+        };
+
+        return complexPatterns.Any(pattern => Regex.IsMatch(logLine, pattern));
+    }
+
+    public override LogEntry? Parse(string logLine, string sourceFile, int lineNumber)
+    {
+        try
+        {
+            // Use AI to parse the log line
+            var jsonResult = _openAiService
+                .CallPatternAsync(PatternPath, logLine)
+                .GetAwaiter()
+                .GetResult();
+
+            if (string.IsNullOrEmpty(jsonResult))
+            {
+                _logger.LogWarning(
+                    "AI parser returned empty result for line {LineNumber}",
+                    lineNumber
+                );
+                return null;
+            }
+
+            // Parse the JSON response
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            };
+
+            var logEntry = JsonSerializer.Deserialize<LogEntry>(jsonResult, options);
+
+            if (logEntry == null)
+            {
+                _logger.LogWarning(
+                    "Failed to deserialize AI parser result for line {LineNumber}",
+                    lineNumber
+                );
+                return null;
+            }
+
+            // Set required fields that might not be in AI response
+            logEntry.SourceFile = sourceFile;
+            logEntry.LineNumber = lineNumber;
+            logEntry.RawContent = logLine;
+
+            // Generate new ID if not provided
+            if (string.IsNullOrEmpty(logEntry.Id))
+            {
+                logEntry.Id = Guid.NewGuid().ToString();
+            }
+
+            // Validate and fallback for critical fields
+            if (logEntry.Timestamp == default)
+            {
+                logEntry.Timestamp = DateTime.UtcNow;
+            }
+
+            if (string.IsNullOrEmpty(logEntry.Message))
+            {
+                logEntry.Message = logLine;
+            }
+
+            _logger.LogDebug(
+                "AI parser successfully parsed line {LineNumber} with service '{Service}' and level '{Level}'",
+                lineNumber,
+                logEntry.Service,
+                logEntry.Level
+            );
+
+            return logEntry;
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "AI parser returned invalid JSON for line {LineNumber}: {Error}",
+                lineNumber,
+                ex.Message
+            );
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "AI parser failed for line {LineNumber}: {Error}",
+                lineNumber,
+                ex.Message
+            );
+            return null;
+        }
     }
 }

@@ -172,10 +172,19 @@ public class OpenAIService : IDisposable
             JsonSerializer.Serialize(request),
             Encoding.UTF8,
             "application/json"
-        );
-
-        var response = await _httpClient.PostAsync("https://api.openai.com/v1/embeddings", content);
-        response.EnsureSuccessStatusCode();
+        );        var response = await _httpClient.PostAsync("https://api.openai.com/v1/embeddings", content);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger.LogError(
+                "OpenAI embeddings API request failed with status {StatusCode} ({ReasonPhrase}). Response: {ErrorContent}",
+                response.StatusCode,
+                response.ReasonPhrase,
+                errorContent
+            );
+            response.EnsureSuccessStatusCode();
+        }
 
         var responseContent = await response.Content.ReadAsStringAsync();
         var document = JsonDocument.Parse(responseContent);
@@ -238,13 +247,22 @@ public class OpenAIService : IDisposable
                 JsonSerializer.Serialize(request),
                 Encoding.UTF8,
                 "application/json"
-            );
-
-            var response = await _httpClient.PostAsync(
+            );            var response = await _httpClient.PostAsync(
                 "https://api.openai.com/v1/chat/completions",
                 content
             );
-            response.EnsureSuccessStatusCode();
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError(
+                    "OpenAI chat completions API request failed with status {StatusCode} ({ReasonPhrase}). Response: {ErrorContent}",
+                    response.StatusCode,
+                    response.ReasonPhrase,
+                    errorContent
+                );
+                response.EnsureSuccessStatusCode();
+            }
 
             var responseContent = await response.Content.ReadAsStringAsync();
             var document = JsonDocument.Parse(responseContent);
@@ -269,6 +287,34 @@ public class OpenAIService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error calling OpenAI API");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Calls OpenAI with a pattern and user input for general purpose parsing
+    /// </summary>
+    public async Task<string?> CallPatternAsync(
+        string patternPath,
+        string userInput,
+        string model = "gpt-4o-mini"
+    )
+    {
+        try
+        {
+            var systemPrompt = await LoadPatternSystemPromptFromPathAsync(patternPath);
+
+            var config = new Configuration
+            {
+                Model = model,
+                Temperature = 0.1, // Low temperature for consistent parsing
+            };
+
+            return await CallOpenAIAsync(systemPrompt, userInput, config);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calling pattern {PatternPath}", patternPath);
             return null;
         }
     }
@@ -309,6 +355,46 @@ public class OpenAIService : IDisposable
         }
 
         return await File.ReadAllTextAsync(patternFile);
+    }
+
+    /// <summary>
+    /// Loads system prompt from a specific file path
+    /// </summary>
+    private async Task<string> LoadPatternSystemPromptFromPathAsync(string patternPath)
+    {
+        var fullPath = Path.IsPathRooted(patternPath)
+            ? patternPath
+            : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, patternPath);
+
+        if (!File.Exists(fullPath))
+        {
+            // Fallback: look in the project directory (for development)
+            var projectDir = Path.GetDirectoryName(
+                System.Reflection.Assembly.GetExecutingAssembly().Location
+            );
+            while (
+                projectDir != null && !File.Exists(Path.Combine(projectDir, "AnalyzeLogs.csproj"))
+            )
+            {
+                projectDir = Path.GetDirectoryName(projectDir);
+            }
+
+            if (projectDir != null)
+            {
+                var devPatternFile = Path.Combine(projectDir, patternPath);
+                if (File.Exists(devPatternFile))
+                {
+                    fullPath = devPatternFile;
+                }
+            }
+        }
+
+        if (!File.Exists(fullPath))
+        {
+            throw new FileNotFoundException($"Pattern file not found: {patternPath}");
+        }
+
+        return await File.ReadAllTextAsync(fullPath);
     }
 
     /// <summary>

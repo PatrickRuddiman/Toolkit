@@ -13,46 +13,46 @@ class Program
     static async Task<int> Main(string[] args)
     {
         // Command line options
-        var pathOption = new Option<string>(
+        Option<string> pathOption = new Option<string>(
             "--path",
             () => "*.log",
             "Glob pattern for log files (e.g., '*.log', 'logs/**/*.log')"
         );
 
-        var outputOption = new Option<string?>(
+        Option<string?> outputOption = new Option<string?>(
             "--output",
             "Output file path (optional, prints to console if not specified)"
         );
 
-        var verboseOption = new Option<bool>("--verbose", "Enable verbose logging");
+        Option<bool> verboseOption = new Option<bool>("--verbose", "Enable verbose logging");
 
-        var modelOption = new Option<string>(
+        Option<string> modelOption = new Option<string>(
             "--model",
             () => "gpt-4o-mini",
             "AI model to use for analysis"
         );
 
-        var enableCoherenceOption = new Option<bool>(
+        Option<bool> enableCoherenceOption = new Option<bool>(
             "--coherence",
             () => true,
             "Enable coherence analysis"
         );
 
-        var enableAnomalyOption = new Option<bool>(
+        Option<bool> enableAnomalyOption = new Option<bool>(
             "--anomaly",
             () => true,
             "Enable anomaly detection"
         );
 
-        var enableTaggingOption = new Option<bool>("--tagging", () => true, "Enable log tagging");
-        var enableEmbeddingsOption = new Option<bool>(
+        Option<bool> enableTaggingOption = new Option<bool>("--tagging", () => true, "Enable log tagging");
+        Option<bool> enableEmbeddingsOption = new Option<bool>(
             "--embeddings",
             () => true,
             "Enable semantic embeddings analysis"
         );
 
         // Main analyze command
-        var analyzeCommand = new Command("analyze", "Analyze log files");
+        Command analyzeCommand = new Command("analyze", "Analyze log files");
         analyzeCommand.AddOption(pathOption);
         analyzeCommand.AddOption(outputOption);
         analyzeCommand.AddOption(verboseOption);
@@ -108,13 +108,13 @@ class Program
         );
 
         // Setup command
-        var setupCommand = new Command("setup", "Configure API keys and settings");
+        Command setupCommand = new Command("setup", "Configure API keys and settings");
         setupCommand.SetHandler(async () =>
         {
             await SetupConfiguration();
         });
 
-        var rootCommand = new RootCommand("AI-powered log analysis tool for microservice systems")
+        RootCommand rootCommand = new RootCommand("AI-powered log analysis tool for microservice systems")
         {
             analyzeCommand,
             setupCommand,
@@ -194,7 +194,7 @@ class Program
     )
     {
         // Setup DI container
-        var services = new ServiceCollection();
+        ServiceCollection services = new ServiceCollection();
         // Configure logging
         services.AddLogging(builder =>
         {
@@ -220,39 +220,39 @@ class Program
         services.AddScoped<LogParsingService>();
         services.AddScoped<OpenAIService>(provider =>
         {
-            var logger = provider.GetRequiredService<ILogger<OpenAIService>>();
-            var configService = provider.GetRequiredService<ConfigurationService>();
+            ILogger<OpenAIService> logger = provider.GetRequiredService<ILogger<OpenAIService>>();
+            ConfigurationService configService = provider.GetRequiredService<ConfigurationService>();
             return new OpenAIService(logger, configService);
         });
         services.AddScoped<EmbeddingService>(provider =>
         {
-            var logger = provider.GetRequiredService<ILogger<EmbeddingService>>();
-            var openAIService = provider.GetRequiredService<OpenAIService>();
+            ILogger<EmbeddingService> logger = provider.GetRequiredService<ILogger<EmbeddingService>>();
+            OpenAIService openAIService = provider.GetRequiredService<OpenAIService>();
             return new EmbeddingService(logger, openAIService);
         });
         services.AddScoped<AnalysisService>();
         services.AddScoped<ReportService>();
 
-        var serviceProvider = services.BuildServiceProvider();
-        var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
+        ServiceProvider serviceProvider = services.BuildServiceProvider();
+        ILogger<Program> logger = serviceProvider.GetRequiredService<ILogger<Program>>();
 
         logger.LogInformation("Starting log analysis for pattern: {Path}", path);
 
         // Get services
-        var ingestionService = serviceProvider.GetRequiredService<FileIngestionService>();
-        var parsingService = serviceProvider.GetRequiredService<LogParsingService>();
-        var analysisService = serviceProvider.GetRequiredService<AnalysisService>();
-        var reportService = serviceProvider.GetRequiredService<ReportService>();
+        FileIngestionService ingestionService = serviceProvider.GetRequiredService<FileIngestionService>();
+        LogParsingService parsingService = serviceProvider.GetRequiredService<LogParsingService>();
+        AnalysisService analysisService = serviceProvider.GetRequiredService<AnalysisService>();
+        ReportService reportService = serviceProvider.GetRequiredService<ReportService>();
 
         // Process logs
-        var logFiles = await ingestionService.GetLogFilesAsync(path);
+        List<string> logFiles = await ingestionService.GetLogFilesAsync(path);
         logger.LogInformation("Found {Count} log files", logFiles.Count);
 
-        var logEntries = new List<LogEntry>();
-        foreach (var file in logFiles)
+        List<LogEntry> logEntries = new List<LogEntry>();
+        foreach (string file in logFiles)
         {
             logger.LogDebug("Processing file: {File}", file);
-            var entries = await parsingService.ParseLogFileAsync(file);
+            List<LogEntry> entries = await parsingService.ParseFileAsync(file);
             logEntries.AddRange(entries);
         }
 
@@ -262,7 +262,7 @@ class Program
         var analysisResult = await analysisService.AnalyzeLogsAsync(logEntries);
 
         // Generate report
-        var report = await reportService.GenerateReportAsync(analysisResult, logFiles);
+        string report = await reportService.GenerateReportAsync(analysisResult, logFiles);
 
         // Output report
         if (string.IsNullOrEmpty(output))
@@ -282,17 +282,17 @@ class Program
         Console.WriteLine();
 
         // Setup basic logging for setup
-        using var loggerFactory = LoggerFactory.Create(builder =>
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
             builder.AddConsole().SetMinimumLevel(MsLogLevel.Information)
         );
 
-        var logger = loggerFactory.CreateLogger<ConfigurationService>();
-        var configService = new ConfigurationService(logger);
+        ILogger<ConfigurationService> logger = loggerFactory.CreateLogger<ConfigurationService>();
+        ConfigurationService configService = new ConfigurationService(logger);
 
         // Check current configuration status
-        var hasApiKey = await configService.HasApiKeyAsync();
+        bool hasApiKey = await configService.HasApiKeyAsync();
 
-        Console.WriteLine($"Configuration Status:");
+        Console.WriteLine("Configuration Status:");
         Console.WriteLine($"- Configuration file: {configService.GetConfigFilePath()}");
         Console.WriteLine($"- API key configured: {(hasApiKey ? "Yes" : "No")}");
         Console.WriteLine();
@@ -309,7 +309,7 @@ class Program
             Console.WriteLine();
             Console.Write("Select an option (1-5): ");
 
-            var choice = Console.ReadLine()?.Trim();
+            string? choice = Console.ReadLine()?.Trim();
 
             switch (choice)
             {
@@ -348,7 +348,7 @@ class Program
         Console.Write("Enter your OpenAI API key (input will be hidden): ");
 
         // Hide input for security
-        var apiKey = ReadPasswordFromConsole();
+        string apiKey = ReadPasswordFromConsole();
         Console.WriteLine();
 
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -362,7 +362,7 @@ class Program
         {
             Console.WriteLine("Warning: OpenAI API keys typically start with 'sk-'");
             Console.Write("Continue anyway? (y/N): ");
-            var confirm = Console.ReadLine()?.Trim().ToLowerInvariant();
+            string? confirm = Console.ReadLine()?.Trim().ToLowerInvariant();
             if (confirm != "y" && confirm != "yes")
             {
                 Console.WriteLine("Configuration cancelled.");
@@ -387,8 +387,8 @@ class Program
         Console.WriteLine("=== Current Configuration ===");
         Console.WriteLine();
 
-        var hasApiKey = await configService.HasApiKeyAsync();
-        var configPath = configService.GetConfigFilePath();
+        bool hasApiKey = await configService.HasApiKeyAsync();
+        string configPath = configService.GetConfigFilePath();
 
         Console.WriteLine($"Configuration file: {configPath}");
         Console.WriteLine($"File exists: {File.Exists(configPath)}");
@@ -396,17 +396,17 @@ class Program
 
         if (hasApiKey)
         {
-            var apiKey = await configService.GetApiKeyAsync();
+            string? apiKey = await configService.GetApiKeyAsync();
             if (!string.IsNullOrEmpty(apiKey))
             {
                 // Show only first few and last few characters for security
-                var maskedKey = $"{apiKey[..Math.Min(8, apiKey.Length)]}...{apiKey[^4..]}";
+                string maskedKey = $"{apiKey[..Math.Min(8, apiKey.Length)]}...{apiKey[^4..]}";
                 Console.WriteLine($"API key (masked): {maskedKey}");
             }
         }
 
         // Show environment variable status
-        var envApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        string? envApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         Console.WriteLine(
             $"Environment variable OPENAI_API_KEY: {(!string.IsNullOrEmpty(envApiKey) ? "Set" : "Not set")}"
         );
@@ -416,19 +416,19 @@ class Program
     {
         Console.WriteLine("=== Test API Key ===");
         Console.WriteLine();
-        using var loggerFactory = LoggerFactory.Create(builder =>
+        using ILoggerFactory loggerFactory = LoggerFactory.Create(builder =>
             builder.AddConsole().SetMinimumLevel(MsLogLevel.Warning)
         );
 
-        var logger = loggerFactory.CreateLogger<EmbeddingService>();
-        var openAILogger = loggerFactory.CreateLogger<OpenAIService>();
-        var openAIService = new OpenAIService(openAILogger, configService);
+        ILogger<EmbeddingService> logger = loggerFactory.CreateLogger<EmbeddingService>();
+        ILogger<OpenAIService> openAILogger = loggerFactory.CreateLogger<OpenAIService>();
+        OpenAIService openAIService = new OpenAIService(openAILogger, configService);
 
-        var embeddingService = new EmbeddingService(logger, openAIService);
+        EmbeddingService embeddingService = new EmbeddingService(logger, openAIService);
 
         try
         {
-            var hasKey = await embeddingService.HasApiKeyConfiguredAsync();
+            bool hasKey = await embeddingService.HasApiKeyConfiguredAsync();
             if (!hasKey)
             {
                 Console.WriteLine("✗ No API key configured.");
@@ -437,7 +437,7 @@ class Program
 
             Console.WriteLine("Testing API key by generating a simple embedding...");
             // Create a test log entry
-            var testEntries = new List<LogEntry>
+            List<LogEntry> testEntries = new List<LogEntry>
             {
                 new LogEntry
                 {
@@ -478,7 +478,7 @@ class Program
         Console.WriteLine("=== Remove Configuration ===");
         Console.WriteLine();
 
-        var hasApiKey = await configService.HasApiKeyAsync();
+        bool hasApiKey = await configService.HasApiKeyAsync();
         if (!hasApiKey)
         {
             Console.WriteLine("No configuration found to remove.");
@@ -486,7 +486,7 @@ class Program
         }
 
         Console.Write("Are you sure you want to remove the saved configuration? (y/N): ");
-        var confirm = Console.ReadLine()?.Trim().ToLowerInvariant();
+        string? confirm = Console.ReadLine()?.Trim().ToLowerInvariant();
 
         if (confirm != "y" && confirm != "yes")
         {
@@ -507,7 +507,7 @@ class Program
 
     private static string ReadPasswordFromConsole()
     {
-        var password = new StringBuilder();
+        StringBuilder password = new StringBuilder();
         ConsoleKeyInfo keyInfo;
 
         do

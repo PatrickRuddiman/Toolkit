@@ -11,28 +11,23 @@ public class LogParsingService
 {
     private readonly ILogger<LogParsingService> _logger;
     private readonly List<ILogParser> _parsers;
+    private readonly OpenAIService _openAiService;
 
-    public LogParsingService(ILogger<LogParsingService> logger)
+    public LogParsingService(ILogger<LogParsingService> logger, OpenAIService openAiService, ILoggerFactory loggerFactory)
     {
         _logger = logger;
+        _openAiService = openAiService;
         _parsers = new List<ILogParser>
         {
-            new JsonLogParser(),
-            new StructuredTextLogParser(),
-            new AccessLogParser(),
-            new UnstructuredLogParser(),
+            new JsonLogParser(loggerFactory.CreateLogger<JsonLogParser>()),
+            new StructuredTextLogParser(loggerFactory.CreateLogger<StructuredTextLogParser>()),
+            new AccessLogParser(loggerFactory.CreateLogger<AccessLogParser>()),
+            new AiLogParser(_openAiService, loggerFactory.CreateLogger<AiLogParser>()),
+            new UnstructuredLogParser(loggerFactory.CreateLogger<UnstructuredLogParser>()),
         };
 
         // Sort by priority (higher first)
         _parsers.Sort((a, b) => b.Priority.CompareTo(a.Priority));
-    }
-
-    /// <summary>
-    /// Parses a single log file (main entry point)
-    /// </summary>
-    public async Task<List<LogEntry>> ParseLogFileAsync(string filePath)
-    {
-        return await ParseFileAsync(filePath);
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using AnalyzeLogs.Models;
+using Microsoft.Extensions.Logging;
 
 namespace AnalyzeLogs.Services.Parsing;
 
@@ -28,26 +29,33 @@ public interface ILogParser
 /// </summary>
 public abstract class BaseLogParser : ILogParser
 {
+    protected readonly ILogger _logger;
+
+    protected BaseLogParser(ILogger logger)
+    {
+        _logger = logger;
+    }
+
     public abstract bool CanParse(string logLine);
     public abstract LogEntry? Parse(string logLine, string sourceFile, int lineNumber);
     public abstract int Priority { get; }
 
-    protected LogLevel ParseLogLevel(string? levelText)
+    protected Models.LogLevel ParseLogLevel(string? levelText)
     {
         if (string.IsNullOrEmpty(levelText))
-            return LogLevel.Info;
+            return Models.LogLevel.Info;
 
         levelText = levelText.ToUpperInvariant().Trim();
 
         return levelText switch
         {
-            "TRACE" or "TRC" => LogLevel.Trace,
-            "DEBUG" or "DBG" => LogLevel.Debug,
-            "INFO" or "INF" or "INFORMATION" => LogLevel.Info,
-            "WARN" or "WRN" or "WARNING" => LogLevel.Warning,
-            "ERROR" or "ERR" => LogLevel.Error,
-            "FATAL" or "CRITICAL" or "CRIT" => LogLevel.Critical,
-            _ => LogLevel.Info,
+            "TRACE" or "TRC" => Models.LogLevel.Trace,
+            "DEBUG" or "DBG" => Models.LogLevel.Debug,
+            "INFO" or "INF" or "INFORMATION" => Models.LogLevel.Info,
+            "WARN" or "WRN" or "WARNING" => Models.LogLevel.Warning,
+            "ERROR" or "ERR" => Models.LogLevel.Error,
+            "FATAL" or "CRITICAL" or "CRIT" => Models.LogLevel.Critical,
+            _ => Models.LogLevel.Info,
         };
     }
 
