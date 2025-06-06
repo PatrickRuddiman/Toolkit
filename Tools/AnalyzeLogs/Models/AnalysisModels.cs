@@ -97,11 +97,6 @@ public class Anomaly
     public string? Recommendation { get; set; }
 
     /// <summary>
-    /// Detailed information about the anomaly
-    /// </summary>
-    public string Details => Description;
-
-    /// <summary>
     /// IDs of related log entries
     /// </summary>
     public List<string> RelatedLogIds => RelatedEntries.Select(e => e.Id).ToList();

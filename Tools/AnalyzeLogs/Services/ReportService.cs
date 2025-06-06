@@ -213,9 +213,9 @@ public class ReportService
                 report.AppendLine($"• [{anomaly.Timestamp:HH:mm:ss}] {anomaly.Service} - {anomaly.Type}");
                 report.AppendLine($"  {anomaly.Description}");
                 
-                if (!string.IsNullOrEmpty(anomaly.Details))
+                if (!string.IsNullOrEmpty(anomaly.Recommendation))
                 {
-                    report.AppendLine($"  Details: {anomaly.Details}");
+                    report.AppendLine($"  Recommendation: {anomaly.Recommendation}");
                 }
                 
                 if (anomaly.RelatedLogIds.Any())
