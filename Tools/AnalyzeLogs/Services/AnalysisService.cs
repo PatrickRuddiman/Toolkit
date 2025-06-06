@@ -377,4 +377,6 @@ public class AnalysisResult
     public List<LogCorrelation> Correlations { get; set; } = new();
     public List<LogEntry> EmbeddingOutliers { get; set; } = new();
     public List<string> Errors { get; set; } = new();
+    public List<LogEntry>? LogEntries { get; set; }
+    public List<string>? ProcessedFiles { get; set; }
 }

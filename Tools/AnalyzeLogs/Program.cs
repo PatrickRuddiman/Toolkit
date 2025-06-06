@@ -1,7 +1,9 @@
 ﻿using System.CommandLine;
 using System.Text;
+using AnalyzeLogs.Data;
 using AnalyzeLogs.Models;
 using AnalyzeLogs.Services;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MsLogLevel = Microsoft.Extensions.Logging.LogLevel;
@@ -44,7 +46,11 @@ class Program
             "Enable anomaly detection"
         );
 
-        Option<bool> enableTaggingOption = new Option<bool>("--tagging", () => true, "Enable log tagging");
+        Option<bool> enableTaggingOption = new Option<bool>(
+            "--tagging",
+            () => true,
+            "Enable log tagging"
+        );
         Option<bool> enableEmbeddingsOption = new Option<bool>(
             "--embeddings",
             () => true,
@@ -105,19 +111,163 @@ class Program
             enableAnomalyOption,
             enableTaggingOption,
             enableEmbeddingsOption
-        );
-
-        // Setup command
+        ); // Setup command
         Command setupCommand = new Command("setup", "Configure API keys and settings");
         setupCommand.SetHandler(async () =>
         {
             await SetupConfiguration();
         });
 
-        RootCommand rootCommand = new RootCommand("AI-powered log analysis tool for microservice systems")
+        // Project management commands
+        Command projectCommand = new Command("project", "Manage analysis projects");
+
+        // Project create command
+        Command createProjectCommand = new Command("create", "Create a new project");
+        Option<string> projectNameOption = new Option<string>("--name", "Project name")
+        {
+            IsRequired = true,
+        };
+        Option<string?> projectDescriptionOption = new Option<string?>(
+            "--description",
+            "Project description"
+        );
+        createProjectCommand.AddOption(projectNameOption);
+        createProjectCommand.AddOption(projectDescriptionOption);
+        createProjectCommand.SetHandler(
+            async (string name, string? description) =>
+            {
+                await CreateProject(name, description);
+            },
+            projectNameOption,
+            projectDescriptionOption
+        );
+
+        // Project list command
+        Command listProjectsCommand = new Command("list", "List all projects");
+        listProjectsCommand.SetHandler(async () =>
+        {
+            await ListProjects();
+        });
+
+        // Project delete command
+        Command deleteProjectCommand = new Command("delete", "Delete a project");
+        Option<string> deleteProjectNameOption = new Option<string>(
+            "--name",
+            "Project name to delete"
+        )
+        {
+            IsRequired = true,
+        };
+        deleteProjectCommand.AddOption(deleteProjectNameOption);
+        deleteProjectCommand.SetHandler(
+            async (string name) =>
+            {
+                await DeleteProject(name);
+            },
+            deleteProjectNameOption
+        );
+
+        // Project analyze command (enhanced analyze with project support)
+        Command projectAnalyzeCommand = new Command("analyze", "Analyze logs within a project");
+        Option<string> analyzeProjectNameOption = new Option<string>("--project", "Project name")
+        {
+            IsRequired = true,
+        };
+        Option<string?> sessionNameOption = new Option<string?>(
+            "--session",
+            "Session name (optional, auto-generated if not provided)"
+        );
+        Option<bool> generateReportOption = new Option<bool>(
+            "--report",
+            () => true,
+            "Generate markdown report"
+        );
+
+        projectAnalyzeCommand.AddOption(analyzeProjectNameOption);
+        projectAnalyzeCommand.AddOption(sessionNameOption);
+        projectAnalyzeCommand.AddOption(pathOption);
+        projectAnalyzeCommand.AddOption(outputOption);
+        projectAnalyzeCommand.AddOption(verboseOption);
+        projectAnalyzeCommand.AddOption(modelOption);
+        projectAnalyzeCommand.AddOption(enableCoherenceOption);
+        projectAnalyzeCommand.AddOption(enableAnomalyOption);
+        projectAnalyzeCommand.AddOption(enableTaggingOption);
+        projectAnalyzeCommand.AddOption(enableEmbeddingsOption);
+        projectAnalyzeCommand.AddOption(generateReportOption);
+        projectAnalyzeCommand.SetHandler(
+            async (context) =>
+            {
+                var projectName = context.ParseResult.GetValueForOption(analyzeProjectNameOption)!;
+                var sessionName = context.ParseResult.GetValueForOption(sessionNameOption);
+                var path = context.ParseResult.GetValueForOption(pathOption)!;
+                var output = context.ParseResult.GetValueForOption(outputOption);
+                var verbose = context.ParseResult.GetValueForOption(verboseOption);
+                var model = context.ParseResult.GetValueForOption(modelOption)!;
+                var enableCoherence = context.ParseResult.GetValueForOption(enableCoherenceOption);
+                var enableAnomaly = context.ParseResult.GetValueForOption(enableAnomalyOption);
+                var enableTagging = context.ParseResult.GetValueForOption(enableTaggingOption);
+                var enableEmbeddings = context.ParseResult.GetValueForOption(
+                    enableEmbeddingsOption
+                );
+                var generateReport = context.ParseResult.GetValueForOption(generateReportOption);
+
+                await AnalyzeLogsWithProject(
+                    projectName,
+                    sessionName,
+                    path,
+                    output,
+                    verbose,
+                    model,
+                    enableCoherence,
+                    enableAnomaly,
+                    enableTagging,
+                    enableEmbeddings,
+                    generateReport
+                );
+            }
+        );
+
+        // Project report command
+        Command reportCommand = new Command("report", "Generate reports from stored data");
+        Option<string> reportProjectNameOption = new Option<string>("--project", "Project name")
+        {
+            IsRequired = true,
+        };
+        Option<int?> reportSessionIdOption = new Option<int?>(
+            "--session",
+            "Session ID (optional, generates project report if not provided)"
+        );
+        Option<string?> reportOutputOption = new Option<string?>(
+            "--output",
+            "Output file path (optional, prints to console if not specified)"
+        );
+
+        reportCommand.AddOption(reportProjectNameOption);
+        reportCommand.AddOption(reportSessionIdOption);
+        reportCommand.AddOption(reportOutputOption);
+        reportCommand.SetHandler(
+            async (string projectName, int? sessionId, string? output) =>
+            {
+                await GenerateReport(projectName, sessionId, output);
+            },
+            reportProjectNameOption,
+            reportSessionIdOption,
+            reportOutputOption
+        );
+
+        projectCommand.AddCommand(createProjectCommand);
+        projectCommand.AddCommand(listProjectsCommand);
+        projectCommand.AddCommand(deleteProjectCommand);
+        projectCommand.AddCommand(projectAnalyzeCommand);
+        projectCommand.AddCommand(reportCommand);
+
+        RootCommand rootCommand = new RootCommand(
+            "AI-powered log analysis tool for microservice systems"
+        )
         {
             analyzeCommand,
             setupCommand,
+            projectCommand,
         };
 
         // If no subcommand is provided, default to analyze with current options for backward compatibility
@@ -221,12 +371,15 @@ class Program
         services.AddScoped<OpenAIService>(provider =>
         {
             ILogger<OpenAIService> logger = provider.GetRequiredService<ILogger<OpenAIService>>();
-            ConfigurationService configService = provider.GetRequiredService<ConfigurationService>();
+            ConfigurationService configService =
+                provider.GetRequiredService<ConfigurationService>();
             return new OpenAIService(logger, configService);
         });
         services.AddScoped<EmbeddingService>(provider =>
         {
-            ILogger<EmbeddingService> logger = provider.GetRequiredService<ILogger<EmbeddingService>>();
+            ILogger<EmbeddingService> logger = provider.GetRequiredService<
+                ILogger<EmbeddingService>
+            >();
             OpenAIService openAIService = provider.GetRequiredService<OpenAIService>();
             return new EmbeddingService(logger, openAIService);
         });
@@ -239,7 +392,8 @@ class Program
         logger.LogInformation("Starting log analysis for pattern: {Path}", path);
 
         // Get services
-        FileIngestionService ingestionService = serviceProvider.GetRequiredService<FileIngestionService>();
+        FileIngestionService ingestionService =
+            serviceProvider.GetRequiredService<FileIngestionService>();
         LogParsingService parsingService = serviceProvider.GetRequiredService<LogParsingService>();
         AnalysisService analysisService = serviceProvider.GetRequiredService<AnalysisService>();
         ReportService reportService = serviceProvider.GetRequiredService<ReportService>();
@@ -528,7 +682,347 @@ class Program
                 Console.Write("*");
             }
         } while (keyInfo.Key != ConsoleKey.Enter);
-
         return password.ToString();
     }
+
+    #region Project Management Methods
+
+    private static async Task CreateProject(string name, string? description)
+    {
+        try
+        {
+            using var services = CreateServiceProvider(false);
+            var dbService = services.GetRequiredService<DatabaseService>();
+
+            await dbService.InitializeAsync();
+            var project = await dbService.CreateProjectAsync(name, description);
+
+            Console.WriteLine($"✓ Created project '{project.Name}' with ID {project.Id}");
+            if (!string.IsNullOrEmpty(description))
+            {
+                Console.WriteLine($"  Description: {description}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"✗ Failed to create project: {ex.Message}");
+            Environment.Exit(1);
+        }
+    }
+
+    private static async Task ListProjects()
+    {
+        try
+        {
+            using var services = CreateServiceProvider(false);
+            var dbService = services.GetRequiredService<DatabaseService>();
+
+            await dbService.InitializeAsync();
+            var projects = await dbService.ListProjectsAsync();
+
+            if (!projects.Any())
+            {
+                Console.WriteLine(
+                    "No projects found. Create a project with: analyze-logs project create --name <name>"
+                );
+                return;
+            }
+
+            Console.WriteLine("Projects:");
+            Console.WriteLine();
+
+            foreach (var project in projects)
+            {
+                Console.WriteLine($"📁 {project.Name} (ID: {project.Id})");
+                if (!string.IsNullOrEmpty(project.Description))
+                {
+                    Console.WriteLine($"   Description: {project.Description}");
+                }
+                Console.WriteLine($"   Created: {project.CreatedAt:yyyy-MM-dd HH:mm:ss} UTC");
+                if (project.LastAnalyzedAt.HasValue)
+                {
+                    Console.WriteLine(
+                        $"   Last Analyzed: {project.LastAnalyzedAt.Value:yyyy-MM-dd HH:mm:ss} UTC"
+                    );
+                }
+                Console.WriteLine($"   Sessions: {project.AnalysisSessions.Count}");
+                Console.WriteLine();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"✗ Failed to list projects: {ex.Message}");
+            Environment.Exit(1);
+        }
+    }
+
+    private static async Task DeleteProject(string name)
+    {
+        try
+        {
+            using var services = CreateServiceProvider(false);
+            var dbService = services.GetRequiredService<DatabaseService>();
+
+            await dbService.InitializeAsync();
+            var project = await dbService.GetProjectByNameAsync(name);
+
+            if (project == null)
+            {
+                Console.WriteLine($"✗ Project '{name}' not found");
+                Environment.Exit(1);
+                return;
+            }
+
+            Console.Write(
+                $"Are you sure you want to delete project '{name}' and all its data? (y/N): "
+            );
+            string? confirm = Console.ReadLine()?.Trim().ToLowerInvariant();
+
+            if (confirm != "y" && confirm != "yes")
+            {
+                Console.WriteLine("Project deletion cancelled.");
+                return;
+            }
+
+            await dbService.DeleteProjectAsync(project.Id);
+            Console.WriteLine($"✓ Deleted project '{name}'");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"✗ Failed to delete project: {ex.Message}");
+            Environment.Exit(1);
+        }
+    }
+
+    private static async Task AnalyzeLogsWithProject(
+        string projectName,
+        string? sessionName,
+        string path,
+        string? output,
+        bool verbose,
+        string model,
+        bool enableCoherence,
+        bool enableAnomaly,
+        bool enableTagging,
+        bool enableEmbeddings,
+        bool generateReport
+    )
+    {
+        try
+        {
+            using var services = CreateServiceProvider(verbose);
+            var dbService = services.GetRequiredService<DatabaseService>();
+            var analysisService = services.GetRequiredService<AnalysisService>();
+            var reportService = services.GetRequiredService<MarkdownReportService>();
+
+            await dbService.InitializeAsync();
+
+            // Get or create project
+            var project = await dbService.GetProjectByNameAsync(projectName);
+            if (project == null)
+            {
+                Console.WriteLine($"Project '{projectName}' not found. Creating new project...");
+                project = await dbService.CreateProjectAsync(projectName);
+            }
+
+            // Generate session name if not provided
+            if (string.IsNullOrEmpty(sessionName))
+            {
+                sessionName = $"Session-{DateTime.UtcNow:yyyyMMdd-HHmmss}";
+            }
+
+            // Create analysis session
+            var session = await dbService.CreateSessionAsync(project.Id, sessionName);
+            Console.WriteLine($"Created analysis session: {sessionName} (ID: {session.Id})");
+
+            // Perform analysis
+            var config = new Configuration
+            {
+                EnableCoherenceAnalysis = enableCoherence,
+                EnableAnomalyDetection = enableAnomaly,
+                EnableTagging = enableTagging,
+                EnableEmbeddings = enableEmbeddings,
+                Model = model,
+            };
+
+            Console.WriteLine($"Analyzing logs in project '{projectName}'...");
+
+            // Process log files
+            var ingestionService = services.GetRequiredService<FileIngestionService>();
+            var parsingService = services.GetRequiredService<LogParsingService>();
+
+            var logFiles = await ingestionService.GetLogFilesAsync(path);
+            Console.WriteLine($"Found {logFiles.Count} log files");
+
+            var logEntries = new List<LogEntry>();
+            foreach (var file in logFiles)
+            {
+                var entries = await parsingService.ParseFileAsync(file);
+                logEntries.AddRange(entries);
+            }
+
+            Console.WriteLine($"Parsed {logEntries.Count} log entries");
+            var result = await analysisService.AnalyzeLogsAsync(logEntries);
+
+            // Add processed files to result
+            result.ProcessedFiles = logFiles;
+
+            // Store results in database
+            if (result.LogEntries?.Any() == true)
+            {
+                await dbService.StoreLogEntriesAsync(project.Id, result.LogEntries, session.Id);
+            }
+
+            if (result.Anomalies?.Any() == true)
+            {
+                await dbService.StoreAnomaliesAsync(project.Id, result.Anomalies, session.Id);
+            }
+
+            if (result.Correlations?.Any() == true)
+            {
+                await dbService.StoreCorrelationsAsync(project.Id, result.Correlations, session.Id);
+            }
+
+            // Complete session
+            var sourceFiles = result.ProcessedFiles?.ToList() ?? new List<string>();
+            await dbService.CompleteSessionAsync(
+                session.Id,
+                result.LogEntries?.Count ?? 0,
+                result.Anomalies?.Count ?? 0,
+                result.Correlations?.Count ?? 0,
+                sourceFiles
+            );
+
+            Console.WriteLine($"✓ Analysis completed and stored in database");
+
+            // Generate and save report if requested
+            if (generateReport)
+            {
+                var sessions = await dbService.GetSessionsByProjectIdAsync(project.Id);
+                var reportData = await reportService.GenerateProjectReportAsync(project, sessions);
+
+                if (!string.IsNullOrEmpty(output))
+                {
+                    await File.WriteAllTextAsync(output, reportData);
+                    Console.WriteLine($"✓ Report saved to: {output}");
+                }
+                else
+                {
+                    Console.WriteLine("\n" + new string('=', 80));
+                    Console.WriteLine("ANALYSIS REPORT");
+                    Console.WriteLine(new string('=', 80));
+                    Console.WriteLine(reportData);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"✗ Analysis failed: {ex.Message}");
+            Environment.Exit(1);
+        }
+    }
+
+    private static async Task GenerateReport(string projectName, int? sessionId, string? output)
+    {
+        try
+        {
+            using var services = CreateServiceProvider(false);
+            var dbService = services.GetRequiredService<DatabaseService>();
+            var reportService = services.GetRequiredService<MarkdownReportService>();
+
+            await dbService.InitializeAsync();
+
+            var project = await dbService.GetProjectByNameAsync(projectName);
+            if (project == null)
+            {
+                Console.WriteLine($"✗ Project '{projectName}' not found");
+                Environment.Exit(1);
+                return;
+            }
+
+            string reportData;
+            if (sessionId.HasValue)
+            {
+                var session = await dbService.GetSessionByIdAsync(sessionId.Value);
+                if (session == null)
+                {
+                    Console.WriteLine($"✗ Session {sessionId.Value} not found");
+                    Environment.Exit(1);
+                    return;
+                }
+                reportData = await reportService.GenerateSessionReportAsync(session);
+                Console.WriteLine($"Generated session report for session {sessionId.Value}");
+            }
+            else
+            {
+                var sessions = await dbService.GetSessionsByProjectIdAsync(project.Id);
+                reportData = await reportService.GenerateProjectReportAsync(project, sessions);
+                Console.WriteLine($"Generated project report for '{projectName}'");
+            }
+
+            if (!string.IsNullOrEmpty(output))
+            {
+                await File.WriteAllTextAsync(output, reportData);
+                Console.WriteLine($"✓ Report saved to: {output}");
+            }
+            else
+            {
+                Console.WriteLine("\n" + new string('=', 80));
+                Console.WriteLine("ANALYSIS REPORT");
+                Console.WriteLine(new string('=', 80));
+                Console.WriteLine(reportData);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"✗ Failed to generate report: {ex.Message}");
+            Environment.Exit(1);
+        }
+    }
+
+    private static ServiceProvider CreateServiceProvider(bool verbose)
+    {
+        var services = new ServiceCollection();
+
+        // Configure logging
+        services.AddLogging(builder =>
+        {
+            builder.AddConsole();
+            if (verbose)
+            {
+                builder.SetMinimumLevel(MsLogLevel.Debug);
+            }
+            else
+            {
+                builder.SetMinimumLevel(MsLogLevel.Information);
+            }
+        }); // Add database context
+        services.AddDbContext<LogAnalysisDbContext>();
+
+        // Register Configuration with default values
+        services.AddSingleton<Configuration>(provider => new Configuration
+        {
+            Model = "gpt-4o-mini",
+            EnableCoherenceAnalysis = true,
+            EnableAnomalyDetection = true,
+            EnableTagging = true,
+            EnableEmbeddings = true,
+            Verbose = verbose,
+        });
+
+        // Register services
+        services.AddSingleton<ConfigurationService>();
+        services.AddTransient<DatabaseService>();
+        services.AddTransient<AnalysisService>();
+        services.AddTransient<MarkdownReportService>();
+        services.AddTransient<OpenAIService>();
+        services.AddTransient<EmbeddingService>();
+        services.AddTransient<LogParsingService>();
+        services.AddTransient<FileIngestionService>();
+        services.AddTransient<ReportService>();
+
+        return services.BuildServiceProvider();
+    }
+
+    #endregion
 }

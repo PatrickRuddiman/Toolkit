@@ -13,7 +13,11 @@ public class LogParsingService
     private readonly List<ILogParser> _parsers;
     private readonly OpenAIService _openAiService;
 
-    public LogParsingService(ILogger<LogParsingService> logger, OpenAIService openAiService, ILoggerFactory loggerFactory)
+    public LogParsingService(
+        ILogger<LogParsingService> logger,
+        OpenAIService openAiService,
+        ILoggerFactory loggerFactory
+    )
     {
         _logger = logger;
         _openAiService = openAiService;

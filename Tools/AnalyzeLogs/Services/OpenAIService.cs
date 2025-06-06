@@ -172,8 +172,9 @@ public class OpenAIService : IDisposable
             JsonSerializer.Serialize(request),
             Encoding.UTF8,
             "application/json"
-        );        var response = await _httpClient.PostAsync("https://api.openai.com/v1/embeddings", content);
-        
+        );
+        var response = await _httpClient.PostAsync("https://api.openai.com/v1/embeddings", content);
+
         if (!response.IsSuccessStatusCode)
         {
             var errorContent = await response.Content.ReadAsStringAsync();
@@ -247,11 +248,12 @@ public class OpenAIService : IDisposable
                 JsonSerializer.Serialize(request),
                 Encoding.UTF8,
                 "application/json"
-            );            var response = await _httpClient.PostAsync(
+            );
+            var response = await _httpClient.PostAsync(
                 "https://api.openai.com/v1/chat/completions",
                 content
             );
-            
+
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();

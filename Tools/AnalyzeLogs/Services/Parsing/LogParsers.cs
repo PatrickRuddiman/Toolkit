@@ -11,7 +11,8 @@ namespace AnalyzeLogs.Services.Parsing;
 /// </summary>
 public partial class JsonLogParser : BaseLogParser
 {
-    public JsonLogParser(ILogger<JsonLogParser> logger) : base(logger) { }
+    public JsonLogParser(ILogger<JsonLogParser> logger)
+        : base(logger) { }
 
     public override int Priority => 100;
 
@@ -203,7 +204,8 @@ public partial class JsonLogParser : BaseLogParser
 /// </summary>
 public partial class StructuredTextLogParser : BaseLogParser
 {
-    public StructuredTextLogParser(ILogger<StructuredTextLogParser> logger) : base(logger) { }
+    public StructuredTextLogParser(ILogger<StructuredTextLogParser> logger)
+        : base(logger) { }
 
     [GeneratedRegex(
         @"^\[(\w+)\]\s*(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[.\d]*(?:Z|[+-]\d{2}:\d{2})?)\s*[-–]\s*(.+)$"
@@ -264,7 +266,8 @@ public partial class StructuredTextLogParser : BaseLogParser
 /// </summary>
 public partial class AccessLogParser : BaseLogParser
 {
-    public AccessLogParser(ILogger<AccessLogParser> logger) : base(logger) { }
+    public AccessLogParser(ILogger<AccessLogParser> logger)
+        : base(logger) { }
 
     [GeneratedRegex(
         @"^(\S+)\s+\S+\s+\S+\s+\[([^\]]+)\]\s+""(\S+)\s+(\S+)\s+\S+""\s+(\d+)\s+(\d+)\s*""([^""]*)""\s*""([^""]*)"""
@@ -374,7 +377,8 @@ public partial class AccessLogParser : BaseLogParser
 /// </summary>
 public partial class UnstructuredLogParser : BaseLogParser
 {
-    public UnstructuredLogParser(ILogger<UnstructuredLogParser> logger) : base(logger) { }
+    public UnstructuredLogParser(ILogger<UnstructuredLogParser> logger)
+        : base(logger) { }
 
     [GeneratedRegex(@"\b(\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}:\d{2}[.\d]*(?:Z|[+-]\d{2}:\d{2})?)\b")]
     private static partial Regex TimestampRegex();
@@ -454,7 +458,8 @@ public class AiLogParser : BaseLogParser
         "system.md"
     );
 
-    public AiLogParser(OpenAIService openAiService, ILogger<AiLogParser> logger) : base(logger)
+    public AiLogParser(OpenAIService openAiService, ILogger<AiLogParser> logger)
+        : base(logger)
     {
         _openAiService = openAiService;
     }
