@@ -32,7 +32,7 @@ public class ReportService
         report.AppendLine();
 
         // Summary Section
-        await GenerateSummarySection(report, analysisResult, logFiles);
+        GenerateSummarySection(report, analysisResult, logFiles);
 
         // File Information Section
         GenerateFileInformationSection(report, logFiles);
@@ -68,7 +68,7 @@ public class ReportService
         return report.ToString();
     }
 
-    private async Task GenerateSummarySection(StringBuilder report, AnalysisResult analysisResult, List<string> logFiles)
+    private void GenerateSummarySection(StringBuilder report, AnalysisResult analysisResult, List<string> logFiles)
     {
         report.AppendLine("SUMMARY");
         report.AppendLine("-".PadRight(40, '-'));

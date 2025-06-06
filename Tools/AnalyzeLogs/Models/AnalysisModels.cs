@@ -95,6 +95,16 @@ public class Anomaly
     /// Suggested actions or remediation
     /// </summary>
     public string? Recommendation { get; set; }
+
+    /// <summary>
+    /// Detailed information about the anomaly
+    /// </summary>
+    public string Details => Description;
+
+    /// <summary>
+    /// IDs of related log entries
+    /// </summary>
+    public List<string> RelatedLogIds => RelatedEntries.Select(e => e.Id).ToList();
 }
 
 /// <summary>
@@ -183,6 +193,11 @@ public class ServiceMetrics
     /// Total number of log entries
     /// </summary>
     public int TotalEntries { get; set; }
+
+    /// <summary>
+    /// Total number of requests processed
+    /// </summary>
+    public int TotalRequests { get; set; }
 
     /// <summary>
     /// Number of error entries

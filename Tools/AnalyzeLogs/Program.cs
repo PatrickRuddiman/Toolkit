@@ -126,15 +126,14 @@ class Program
     {
         // Setup DI container
         var services = new ServiceCollection();
-        
-        // Configure logging
+          // Configure logging
         services.AddLogging(builder =>
         {
             builder.AddConsole();
             if (verbose)
-                builder.SetMinimumLevel(LogLevel.Debug);
+                builder.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Debug);
             else
-                builder.SetMinimumLevel(LogLevel.Information);
+                builder.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Information);
         });
 
         // Register services

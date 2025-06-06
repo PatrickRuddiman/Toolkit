@@ -220,8 +220,8 @@ public class AnalysisService
             {
                 ServiceName = group.Key,
                 TotalEntries = entries.Count,
-                ErrorCount = entries.Count(e => e.Level >= LogLevel.Error),
-                WarningCount = entries.Count(e => e.Level == LogLevel.Warning),
+                ErrorCount = entries.Count(e => e.Level >= Models.LogLevel.Error),
+                WarningCount = entries.Count(e => e.Level == Models.LogLevel.Warning),
                 StartTime = entries.Min(e => e.Timestamp),
                 EndTime = entries.Max(e => e.Timestamp),
                 RequestRate = requestRate,
@@ -283,7 +283,7 @@ public class AnalysisService
                 Services = entries.Select(e => e.Service ?? "Unknown").ToHashSet(),
                 StartTime = entries.Min(e => e.Timestamp),
                 EndTime = entries.Max(e => e.Timestamp),
-                IsSuccessful = !entries.Any(e => e.Level >= LogLevel.Error)
+                IsSuccessful = !entries.Any(e => e.Level >= Models.LogLevel.Error)
             };
 
             correlations.Add(correlation);
@@ -313,7 +313,7 @@ public class AnalysisService
                 Services = entries.Select(e => e.Service ?? "Unknown").ToHashSet(),
                 StartTime = entries.Min(e => e.Timestamp),
                 EndTime = entries.Max(e => e.Timestamp),
-                IsSuccessful = !entries.Any(e => e.Level >= LogLevel.Error)
+                IsSuccessful = !entries.Any(e => e.Level >= Models.LogLevel.Error)
             };
 
             correlations.Add(correlation);

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System.Text.RegularExpressions;
 
 namespace AnalyzeLogs.Services;
 
@@ -53,8 +54,14 @@ public class FileIngestionService
             _logger.LogInformation("Searching for files matching pattern '{Pattern}' in base path '{BasePath}'", 
                 pattern, basePath);
 
-            // Use DotNet.Glob for advanced glob support
-            var glob = Glob.Parse(pattern);
+            // Simple glob pattern matching (supports * and ? wildcards)
+            var regexPattern = "^" + Regex.Escape(pattern)
+                .Replace(@"\*\*", "DOUBLESTAR") // Handle ** first
+                .Replace(@"\*", "[^/\\\\]*")     // * matches anything except path separators
+                .Replace("DOUBLESTAR", ".*")     // ** matches anything including path separators
+                .Replace(@"\?", "[^/\\\\]") + "$"; // ? matches single char except path separators
+            
+            var regex = new Regex(regexPattern, RegexOptions.IgnoreCase);
             
             // If pattern contains directory separators, we need to search recursively
             var searchOption = pattern.Contains("**") || pattern.Contains(Path.DirectorySeparatorChar) || pattern.Contains(Path.AltDirectorySeparatorChar)
@@ -72,7 +79,7 @@ public class FileIngestionService
                 // Normalize path separators for glob matching
                 var normalizedPath = relativePath.Replace(Path.DirectorySeparatorChar, '/');
                 
-                if (glob.IsMatch(normalizedPath) || glob.IsMatch(relativePath))
+                if (regex.IsMatch(normalizedPath) || regex.IsMatch(relativePath))
                 {
                     files.Add(file);
                 }
