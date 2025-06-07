@@ -1,5 +1,6 @@
 ﻿using System.CommandLine;
 using System.Text;
+using System.Text.Json;
 using AnalyzeLogs.Data;
 using AnalyzeLogs.Models;
 using AnalyzeLogs.Services;
@@ -12,6 +13,33 @@ namespace AnalyzeLogs;
 
 class Program
 {
+    /// <summary>
+    /// Validates that an OpenAI API key is configured before running analysis
+    /// </summary>
+    private static async Task<bool> ValidateApiKeyAsync(bool verbose = false)
+    {
+        using var services = CreateServiceProvider(verbose);
+        var configService = services.GetRequiredService<ConfigurationService>();
+        var openAIService = services.GetRequiredService<OpenAIService>();
+
+        bool hasApiKey = await openAIService.HasApiKeyConfiguredAsync();
+        if (!hasApiKey)
+        {
+            Console.Error.WriteLine("❌ Error: OpenAI API key is not configured!");
+            Console.Error.WriteLine();
+            Console.Error.WriteLine("Please configure your API key using one of these methods:");
+            Console.Error.WriteLine("1. Run: AnalyzeLogs setup");
+            Console.Error.WriteLine("2. Set environment variable: OPENAI_API_KEY=your_key_here");
+            Console.Error.WriteLine();
+            Console.Error.WriteLine(
+                "You can get an API key from: https://platform.openai.com/api-keys"
+            );
+            return false;
+        }
+
+        return true;
+    }
+
     static async Task<int> Main(string[] args)
     {
         // Command line options
@@ -255,11 +283,55 @@ class Program
             reportOutputOption
         );
 
+        // Project query command
+        Command queryCommand = new Command("query", "Query project data using natural language");
+        Option<string> queryProjectNameOption = new Option<string>("--project", "Project name")
+        {
+            IsRequired = true,
+        };
+        Option<string> queryTextOption = new Option<string>("--query", "Natural language query")
+        {
+            IsRequired = true,
+        };
+        Option<int?> querySessionIdOption = new Option<int?>(
+            "--session",
+            "Session ID (optional, queries entire project if not provided)"
+        );
+        Option<string?> queryOutputOption = new Option<string?>(
+            "--output",
+            "Output file path (optional, prints to console if not specified)"
+        );
+        Option<bool> queryVerboseOption = new Option<bool>("--verbose", "Enable verbose logging");
+
+        queryCommand.AddOption(queryProjectNameOption);
+        queryCommand.AddOption(queryTextOption);
+        queryCommand.AddOption(querySessionIdOption);
+        queryCommand.AddOption(queryOutputOption);
+        queryCommand.AddOption(queryVerboseOption);
+        queryCommand.SetHandler(
+            async (
+                string projectName,
+                string query,
+                int? sessionId,
+                string? output,
+                bool verbose
+            ) =>
+            {
+                await QueryProject(projectName, query, sessionId, output, verbose);
+            },
+            queryProjectNameOption,
+            queryTextOption,
+            querySessionIdOption,
+            queryOutputOption,
+            queryVerboseOption
+        );
+
         projectCommand.AddCommand(createProjectCommand);
         projectCommand.AddCommand(listProjectsCommand);
         projectCommand.AddCommand(deleteProjectCommand);
         projectCommand.AddCommand(projectAnalyzeCommand);
         projectCommand.AddCommand(reportCommand);
+        projectCommand.AddCommand(queryCommand);
 
         RootCommand rootCommand = new RootCommand(
             "AI-powered log analysis tool for microservice systems"
@@ -343,6 +415,12 @@ class Program
         bool enableEmbeddings
     )
     {
+        // Validate API key first
+        if (!await ValidateApiKeyAsync(verbose))
+        {
+            Environment.Exit(1);
+            return;
+        }
         // Setup DI container
         ServiceCollection services = new ServiceCollection();
         // Configure logging
@@ -808,6 +886,13 @@ class Program
         bool generateReport
     )
     {
+        // Validate API key first
+        if (!await ValidateApiKeyAsync(verbose))
+        {
+            Environment.Exit(1);
+            return;
+        }
+
         try
         {
             using var services = CreateServiceProvider(verbose);
@@ -892,14 +977,26 @@ class Program
                 result.Correlations?.Count ?? 0,
                 sourceFiles
             );
-
             Console.WriteLine($"✓ Analysis completed and stored in database");
 
             // Generate and save report if requested
             if (generateReport)
             {
-                var sessions = await dbService.GetSessionsByProjectIdAsync(project.Id);
-                var reportData = await reportService.GenerateProjectReportAsync(project, sessions);
+                Console.WriteLine("Generating comprehensive analysis report...");
+                var reportData = await reportService.GenerateMarkdownReportAsync(
+                    result,
+                    logFiles,
+                    project,
+                    session
+                );
+
+                // Create docs directory and write report
+                var docsPath = Path.Combine(Directory.GetCurrentDirectory(), "docs");
+                Directory.CreateDirectory(docsPath);
+
+                var reportFileName =
+                    $"{project.Name}-analysis-{session.Id}-{DateTime.Now:yyyyMMdd-HHmmss}.md";
+                var reportPath = Path.Combine(docsPath, reportFileName);
 
                 if (!string.IsNullOrEmpty(output))
                 {
@@ -908,11 +1005,12 @@ class Program
                 }
                 else
                 {
-                    Console.WriteLine("\n" + new string('=', 80));
-                    Console.WriteLine("ANALYSIS REPORT");
-                    Console.WriteLine(new string('=', 80));
-                    Console.WriteLine(reportData);
+                    await File.WriteAllTextAsync(reportPath, reportData);
+                    Console.WriteLine($"✓ Report saved to: {reportPath}");
                 }
+
+                // Generate DocFX configuration and serve the report
+                await GenerateDocFXSiteAsync(docsPath, reportPath, project.Name);
             }
         }
         catch (Exception ex)
@@ -980,6 +1078,417 @@ class Program
         }
     }
 
+    private static async Task QueryProject(
+        string projectName,
+        string query,
+        int? sessionId,
+        string? output,
+        bool verbose
+    )
+    {
+        // Validate API key first
+        if (!await ValidateApiKeyAsync(verbose))
+        {
+            Environment.Exit(1);
+            return;
+        }
+
+        try
+        {
+            using var services = CreateServiceProvider(verbose);
+            var dbService = services.GetRequiredService<DatabaseService>();
+            var queryService = services.GetRequiredService<QueryService>();
+
+            await dbService.InitializeAsync();
+
+            var project = await dbService.GetProjectByNameAsync(projectName);
+            if (project == null)
+            {
+                Console.WriteLine($"✗ Project '{projectName}' not found");
+                Environment.Exit(1);
+                return;
+            }
+
+            Console.WriteLine($"🔍 Executing query on project '{projectName}': {query}");
+
+            // Process the natural language query
+            var result = await queryService.ProcessQueryAsync(projectName, query, sessionId);
+
+            // Format the response
+            var response = new StringBuilder();
+            response.AppendLine($"# Query Results");
+            response.AppendLine();
+            response.AppendLine($"**Query:** {result.Query}");
+            response.AppendLine($"**Project:** {result.ProjectName}");
+            if (result.SessionId.HasValue)
+            {
+                response.AppendLine($"**Session:** {result.SessionId}");
+            }
+            response.AppendLine($"**Intent:** {result.Intent}");
+            response.AppendLine($"**Data Type:** {result.DataType}");
+            response.AppendLine($"**Executed:** {result.ExecutedAt:yyyy-MM-dd HH:mm:ss} UTC");
+            response.AppendLine();
+            response.AppendLine("## Response");
+            response.AppendLine();
+            response.AppendLine(result.Response);
+
+            // Add data summary if available
+            if (result.Data.LogEntries?.Count > 0)
+            {
+                response.AppendLine();
+                response.AppendLine($"**Log Entries Found:** {result.Data.LogEntries.Count}");
+            }
+            if (result.Data.Anomalies?.Count > 0)
+            {
+                response.AppendLine($"**Anomalies Found:** {result.Data.Anomalies.Count}");
+            }
+            if (result.Data.ServiceMetrics?.Count > 0)
+            {
+                response.AppendLine($"**Services Analyzed:** {result.Data.ServiceMetrics.Count}");
+            }
+            if (result.Data.Correlations?.Count > 0)
+            {
+                response.AppendLine($"**Correlations Found:** {result.Data.Correlations.Count}");
+            }
+
+            var responseText = response.ToString();
+
+            if (!string.IsNullOrEmpty(output))
+            {
+                await File.WriteAllTextAsync(output, responseText);
+                Console.WriteLine($"✓ Query results saved to: {output}");
+            }
+            else
+            {
+                Console.WriteLine("\n" + new string('=', 80));
+                Console.WriteLine("QUERY RESULTS");
+                Console.WriteLine(new string('=', 80));
+                Console.WriteLine(responseText);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"✗ Failed to execute query: {ex.Message}");
+            if (verbose)
+            {
+                Console.Error.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
+            Environment.Exit(1);
+        }
+    }
+
+    /// <summary>
+    /// Generates a DocFX site configuration and serves the report in the browser
+    /// </summary>
+    private static async Task GenerateDocFXSiteAsync(
+        string docsPath,
+        string reportPath,
+        string projectName
+    )
+    {
+        try
+        {
+            Console.WriteLine("Setting up DocFX documentation site...");
+
+            // Create docfx.json configuration
+            var docfxConfig = new
+            {
+                metadata = new[]
+                {
+                    new
+                    {
+                        src = new[]
+                        {
+                            new { files = new[] { "*.md" }, exclude = new[] { "_site/**" } },
+                        },
+                        dest = "api",
+                    },
+                },
+                build = new
+                {
+                    content = new[] { new { files = new[] { "*.md" } } },
+                    resource = new[] { new { files = new[] { "images/**" } } },
+                    dest = "_site",
+                    template = new[] { "default" },
+                    globalMetadata = new
+                    {
+                        _appTitle = $"Log Analysis Report - {projectName}",
+                        _appName = "AnalyzeLogs Documentation",
+                        _enableSearch = true,
+                    },
+                },
+                serve = new { port = 8080 },
+            };
+
+            var configPath = Path.Combine(docsPath, "docfx.json");
+            var configJson = JsonSerializer.Serialize(
+                docfxConfig,
+                new JsonSerializerOptions { WriteIndented = true }
+            );
+            await File.WriteAllTextAsync(configPath, configJson);
+
+            // Create index.md that references the report
+            var indexContent =
+                $@"# Log Analysis Documentation
+
+Welcome to the log analysis documentation for **{projectName}**.
+
+## Latest Analysis Report
+
+[View Latest Analysis Report](./{Path.GetFileName(reportPath)})
+
+## About AnalyzeLogs
+
+AnalyzeLogs is an AI-powered log analysis tool for microservice systems that provides:
+
+- Anomaly detection using machine learning
+- Cross-service correlation analysis
+- Natural language querying
+- Rich markdown reporting with visualizations
+
+Generated on: {DateTime.Now:yyyy-MM-dd HH:mm:ss} UTC
+";
+
+            var indexPath = Path.Combine(docsPath, "index.md");
+            await File.WriteAllTextAsync(indexPath, indexContent);
+
+            // Create toc.yml for navigation
+            var tocContent =
+                $@"- name: Home
+  href: index.md
+- name: Analysis Report
+  href: {Path.GetFileName(reportPath)}
+";
+
+            var tocPath = Path.Combine(docsPath, "toc.yml");
+            await File.WriteAllTextAsync(tocPath, tocContent);
+
+            Console.WriteLine($"✓ DocFX configuration created in: {docsPath}");
+
+            // Check if docfx is installed, install if needed
+            await EnsureDocFXInstalledAsync();
+
+            // Build and serve the site
+            Console.WriteLine("Building and serving documentation site...");
+            var docfxPath = await GetDocFXPathAsync();
+
+            if (docfxPath != null)
+            {
+                // Build the site
+                var buildResult = await RunProcessAsync(
+                    docfxPath,
+                    $"build \"{configPath}\"",
+                    docsPath
+                );
+                if (buildResult.Success)
+                {
+                    Console.WriteLine("✓ Documentation site built successfully");
+
+                    // Serve the site
+                    Console.WriteLine($"🌐 Starting web server at http://localhost:8080");
+                    Console.WriteLine("📖 Opening documentation in your default browser...");
+                    Console.WriteLine("Press Ctrl+C to stop the server");
+
+                    // Start the server process in background
+                    var serveProcess = new System.Diagnostics.Process
+                    {
+                        StartInfo = new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = docfxPath,
+                            Arguments = $"serve \"{Path.Combine(docsPath, "_site")}\" --port 8080",
+                            WorkingDirectory = docsPath,
+                            UseShellExecute = false,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true,
+                            CreateNoWindow = true,
+                        },
+                    };
+
+                    serveProcess.Start();
+
+                    // Give the server a moment to start
+                    await Task.Delay(2000);
+
+                    // Open browser
+                    try
+                    {
+                        System.Diagnostics.Process.Start(
+                            new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = "http://localhost:8080",
+                                UseShellExecute = true,
+                            }
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"⚠️ Could not automatically open browser: {ex.Message}");
+                        Console.WriteLine("Please manually navigate to: http://localhost:8080");
+                    }
+
+                    // Keep the server running until user interrupts
+                    Console.CancelKeyPress += (sender, e) =>
+                    {
+                        e.Cancel = true;
+                        serveProcess.Kill();
+                        Console.WriteLine("\n📖 Documentation server stopped.");
+                        Environment.Exit(0);
+                    };
+
+                    // Wait for the process to finish (user interruption)
+                    serveProcess.WaitForExit();
+                }
+                else
+                {
+                    Console.WriteLine(
+                        $"⚠️ Failed to build documentation site: {buildResult.Error}"
+                    );
+                    Console.WriteLine($"Report is still available at: {reportPath}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("⚠️ DocFX is not available. Report saved to disk only.");
+                Console.WriteLine($"📄 Report available at: {reportPath}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Failed to generate DocFX site: {ex.Message}");
+            Console.WriteLine($"📄 Report is still available at: {reportPath}");
+        }
+    }
+
+    /// <summary>
+    /// Ensures DocFX is installed as a .NET tool
+    /// </summary>
+    private static async Task EnsureDocFXInstalledAsync()
+    {
+        try
+        {
+            // Check if docfx is already installed
+            var checkResult = await RunProcessAsync(
+                "dotnet",
+                "tool list --global",
+                Directory.GetCurrentDirectory()
+            );
+
+            if (!checkResult.Output.Contains("docfx"))
+            {
+                Console.WriteLine("📦 Installing DocFX as a global .NET tool...");
+                var installResult = await RunProcessAsync(
+                    "dotnet",
+                    "tool install --global docfx",
+                    Directory.GetCurrentDirectory()
+                );
+
+                if (installResult.Success)
+                {
+                    Console.WriteLine("✓ DocFX installed successfully");
+                }
+                else
+                {
+                    Console.WriteLine($"⚠️ Failed to install DocFX: {installResult.Error}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("✓ DocFX is already installed");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Error checking/installing DocFX: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Gets the path to the DocFX executable
+    /// </summary>
+    private static async Task<string?> GetDocFXPathAsync()
+    {
+        try
+        {
+            // Try to find docfx in the global tools
+            var result = await RunProcessAsync("where", "docfx", Directory.GetCurrentDirectory());
+            if (result.Success && !string.IsNullOrEmpty(result.Output))
+            {
+                return result.Output.Trim().Split('\n')[0].Trim();
+            }
+
+            // Fallback: try direct dotnet tool invocation
+            var toolResult = await RunProcessAsync(
+                "dotnet",
+                "tool run docfx --version",
+                Directory.GetCurrentDirectory()
+            );
+            if (toolResult.Success)
+            {
+                return "dotnet tool run docfx";
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Runs a process and captures output
+    /// </summary>
+    private static async Task<(bool Success, string Output, string Error)> RunProcessAsync(
+        string fileName,
+        string arguments,
+        string workingDirectory
+    )
+    {
+        try
+        {
+            using var process = new System.Diagnostics.Process
+            {
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    WorkingDirectory = workingDirectory,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                },
+            };
+
+            var outputBuilder = new StringBuilder();
+            var errorBuilder = new StringBuilder();
+
+            process.OutputDataReceived += (sender, e) =>
+            {
+                if (e.Data != null)
+                    outputBuilder.AppendLine(e.Data);
+            };
+
+            process.ErrorDataReceived += (sender, e) =>
+            {
+                if (e.Data != null)
+                    errorBuilder.AppendLine(e.Data);
+            };
+
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            await process.WaitForExitAsync();
+
+            return (process.ExitCode == 0, outputBuilder.ToString(), errorBuilder.ToString());
+        }
+        catch (Exception ex)
+        {
+            return (false, "", ex.Message);
+        }
+    }
+
     private static ServiceProvider CreateServiceProvider(bool verbose)
     {
         var services = new ServiceCollection();
@@ -1020,6 +1529,7 @@ class Program
         services.AddTransient<LogParsingService>();
         services.AddTransient<FileIngestionService>();
         services.AddTransient<ReportService>();
+        services.AddTransient<QueryService>();
 
         return services.BuildServiceProvider();
     }

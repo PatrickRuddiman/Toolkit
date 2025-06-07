@@ -1,17 +1,19 @@
 # AnalyzeLogs
 
-AI-powered log analysis tool for microservice systems that provides intelligent anomaly detection, pattern recognition, and coherence analysis across distributed systems.
+AI-powered log analysis tool for microservice systems that provides intelligent anomaly detection, pattern recognition, coherence analysis, and natural language querying across distributed systems.
 
 ## Features
 
 - **Multi-format Log Parsing**: Supports JSON, structured text, Apache access logs, and unstructured log formats
 - **AI-Powered Analysis**: Uses OpenAI GPT models with pattern-based system prompts for intelligent log analysis
+- **Project Management**: Organize analyses into projects for long-term tracking and comparison
+- **Natural Language Queries**: Query your log data using plain English with AI-powered intent analysis
 - **Anomaly Detection**: Identifies unusual patterns and outliers in log data
 - **Coherence Analysis**: Detects inconsistencies and correlation issues across services
 - **Semantic Clustering**: Groups similar log entries using embeddings
 - **Cross-Service Correlation**: Analyzes relationships between different services
+- **Rich DocFX Reports**: Generates comprehensive markdown reports with charts, tables, and visualizations
 - **Flexible Input**: Supports glob patterns for analyzing multiple log files
-- **Rich Reporting**: Generates comprehensive analysis reports with metrics and insights
 
 ## Quick Start
 
@@ -32,9 +34,42 @@ This will guide you through:
 The API key is securely stored in your user profile at:
 - Windows: `%APPDATA%\AnalyzeLogs\config.json`
 
-### 2. Analyze Logs
+### 2. Create a Project and Analyze Logs
 
-Analyze log files in your directory:
+Organize your log analysis into projects for better tracking:
+
+```bash
+# Create a new project
+AnalyzeLogs project create --name "MyApp" --description "Production monitoring project"
+
+# Analyze logs into the project
+AnalyzeLogs project analyze --project "MyApp" --path "logs/*.json" --session "daily-check"
+
+# Generate project report
+AnalyzeLogs project report --project "MyApp" --output "MyApp-report.md"
+
+# List all projects
+AnalyzeLogs project list
+```
+
+### 3. Query Your Data
+
+Use natural language to query your analyzed log data:
+
+```bash
+# Query project data
+AnalyzeLogs project query --project "MyApp" --query "Show me all critical errors from the API service"
+
+# Query with session-specific data
+AnalyzeLogs project query --project "MyApp" --query "What were the response time anomalies in the last session?" --session 1
+
+# Save query results to markdown
+AnalyzeLogs project query --project "MyApp" --query "Summarize database performance metrics" --output "db-performance.md"
+```
+
+### 4. Traditional Single Analysis (Legacy Mode)
+
+For one-time analysis without project management:
 
 ```bash
 # Analyze all .log files in current directory
@@ -50,7 +85,7 @@ AnalyzeLogs --path "logs/**/*.log" --verbose
 AnalyzeLogs --path "logs/*.log" --output "report.txt"
 ```
 
-### 3. Use Subcommands (Optional)
+### 5. Use Subcommands (Optional)
 
 For explicit command structure:
 
@@ -58,13 +93,59 @@ For explicit command structure:
 # Configure API keys and settings
 AnalyzeLogs setup
 
-# Analyze logs (same as default behavior)
+# Analyze logs (legacy mode - same as default behavior)
 AnalyzeLogs analyze --path "logs/*.log" --verbose
 ```
 
 ## Command Line Options
 
-### Global Options
+### Project Commands
+
+#### Create Project
+```bash
+AnalyzeLogs project create --name <project-name> [--description <description>]
+```
+
+#### List Projects
+```bash
+AnalyzeLogs project list
+```
+
+#### Delete Project
+```bash
+AnalyzeLogs project delete --project <project-name>
+```
+
+#### Analyze Logs into Project
+```bash
+AnalyzeLogs project analyze --project <project-name> --path <pattern> [options]
+```
+Options:
+- `--session <name>` - Session name for this analysis
+- `--verbose` - Enable verbose logging
+- `--model <model>` - AI model to use (default: "gpt-4o-mini")
+- `--coherence` - Enable coherence analysis (default: true)
+- `--anomaly` - Enable anomaly detection (default: true)
+- `--tagging` - Enable log tagging (default: true)
+- `--embeddings` - Enable semantic embeddings analysis (default: true)
+
+#### Generate Project Report
+```bash
+AnalyzeLogs project report --project <project-name> [--output <file>]
+```
+
+#### Query Project Data
+```bash
+AnalyzeLogs project query --project <project-name> --query <natural-language-query> [options]
+```
+Options:
+- `--session <id>` - Specific session to query (optional)
+- `--output <file>` - Output markdown file (optional)
+- `--verbose` - Enable verbose logging
+
+### Legacy Analysis Commands
+
+#### Global Options
 
 - `--path <pattern>` - Glob pattern for log files (default: "*.log")
 - `--output <file>` - Output file path (prints to console if not specified)
@@ -75,7 +156,7 @@ AnalyzeLogs analyze --path "logs/*.log" --verbose
 - `--tagging` - Enable log tagging (default: true)
 - `--embeddings` - Enable semantic embeddings analysis (default: true)
 
-### Commands
+#### Commands
 
 - `setup` - Configure API keys and settings
 - `analyze` - Analyze log files (default if no command specified)
@@ -192,7 +273,50 @@ ANOMALIES DETECTED
 
 ## Examples
 
-### Basic Analysis
+### Project-Based Workflow (Recommended)
+
+#### Creating and Managing Projects
+```bash
+# Create a project for your microservice system
+AnalyzeLogs project create --name "ProductionApp" --description "Main production system monitoring"
+
+# List all projects
+AnalyzeLogs project list
+
+# Analyze today's logs
+AnalyzeLogs project analyze --project "ProductionApp" --path "logs/2024-01-15/*.json" --session "morning-check"
+
+# Analyze multiple service logs
+AnalyzeLogs project analyze --project "ProductionApp" --path "logs/**/*.log" --session "full-system-analysis"
+
+# Generate comprehensive project report
+AnalyzeLogs project report --project "ProductionApp" --output "production-health-report.md"
+```
+
+#### Natural Language Querying
+```bash
+# Query for errors
+AnalyzeLogs project query --project "ProductionApp" --query "Show me all critical errors from the last 24 hours"
+
+# Performance analysis
+AnalyzeLogs project query --project "ProductionApp" --query "What services have the highest response times?"
+
+# Correlation analysis
+AnalyzeLogs project query --project "ProductionApp" --query "Find correlations between database errors and API timeouts"
+
+# Service-specific queries
+AnalyzeLogs project query --project "ProductionApp" --query "Analyze the health of the user authentication service"
+
+# Anomaly investigation
+AnalyzeLogs project query --project "ProductionApp" --query "What anomalies were detected in session 3?" --session 3
+
+# Save detailed analysis
+AnalyzeLogs project query --project "ProductionApp" --query "Create a detailed performance report for all services" --output "performance-analysis.md"
+```
+
+### Legacy Single Analysis
+
+#### Basic Analysis
 ```bash
 # Analyze logs in current directory
 AnalyzeLogs
@@ -201,7 +325,7 @@ AnalyzeLogs
 AnalyzeLogs --path "logs/api-gateway-*.log"
 ```
 
-### Advanced Analysis
+#### Advanced Analysis
 ```bash
 # Full analysis with all features
 AnalyzeLogs --path "logs/**/*.json" --verbose --output "analysis.txt"
@@ -210,7 +334,7 @@ AnalyzeLogs --path "logs/**/*.json" --verbose --output "analysis.txt"
 AnalyzeLogs --path "logs/*.log" --coherence false --tagging false
 ```
 
-### Multiple Log Sources
+#### Multiple Log Sources
 ```bash
 # Analyze all log files recursively
 AnalyzeLogs --path "**/*.log"

@@ -153,6 +153,84 @@ public class MarkdownReportService
         return report.ToString();
     }
 
+    /// <summary>
+    /// Generate a markdown report specifically for query results
+    /// </summary>
+    public async Task<string> GenerateQueryReportAsync(
+        string projectName,
+        string query,
+        object queryResult,
+        int sessionId
+    )
+    {
+        var report = new StringBuilder();
+
+        // DocFX metadata for query report
+        report.AppendLine("---");
+        report.AppendLine($"title: Query Results - {projectName}");
+        report.AppendLine($"description: Results for query: {query}");
+        report.AppendLine($"author: AI Log Analysis Tool");
+        report.AppendLine($"ms.date: {DateTime.UtcNow:yyyy-MM-dd}");
+        report.AppendLine($"ms.topic: query-results");
+        report.AppendLine($"ms.service: log-analysis");
+        report.AppendLine("---");
+        report.AppendLine();
+
+        // Title and query information
+        report.AppendLine($"# Query Results: {projectName}");
+        report.AppendLine();
+        report.AppendLine($"> **Project:** {projectName}");
+        report.AppendLine($"> **Query:** \"{query}\"");
+        report.AppendLine($"> **Session ID:** `{sessionId}`");
+        report.AppendLine($"> **Executed:** {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        report.AppendLine();
+
+        // Query results section
+        report.AppendLine("## 📋 Query Results");
+        report.AppendLine();
+
+        if (queryResult != null)
+        {
+            // Format the query result based on its type
+            if (queryResult is string stringResult)
+            {
+                report.AppendLine(stringResult);
+            }
+            else
+            {
+                // Convert complex objects to formatted JSON
+                var jsonOptions = new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                };
+                var jsonResult = JsonSerializer.Serialize(queryResult, jsonOptions);
+
+                report.AppendLine("```json");
+                report.AppendLine(jsonResult);
+                report.AppendLine("```");
+            }
+        }
+        else
+        {
+            report.AppendLine("No results found for the specified query.");
+        }
+
+        report.AppendLine();
+
+        // Query execution metadata
+        report.AppendLine("## 📊 Query Metadata");
+        report.AppendLine();
+        report.AppendLine("| Property | Value |");
+        report.AppendLine("|----------|-------|");
+        report.AppendLine($"| **Execution Time** | {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC |");
+        report.AppendLine($"| **Query Length** | {query.Length} characters |");
+        report.AppendLine($"| **Result Type** | {queryResult?.GetType().Name ?? "Null"} |");
+        report.AppendLine();
+
+        return report.ToString();
+    }
+
     private void GenerateDocFXMetadata(
         StringBuilder report,
         Project project,
@@ -165,8 +243,7 @@ public class MarkdownReportService
         report.AppendLine($"author: AI Log Analysis Tool");
         report.AppendLine($"ms.date: {DateTime.UtcNow:yyyy-MM-dd}");
         report.AppendLine($"ms.topic: analysis-report");
-        report.AppendLine($"ms.service: log-analysis");
-        report.AppendLine("---");
+        report.AppendLine($"ms.service: log-analysis");        report.AppendLine("---");
         report.AppendLine();
     }
 
@@ -174,18 +251,25 @@ public class MarkdownReportService
     {
         report.AppendLine($"# Log Analysis Report: {project.Name}");
         report.AppendLine();
-        report.AppendLine($"> **Project:** {project.Name}");
+        
+        // Project information table
+        report.AppendLine("## 📋 Project Information");
+        report.AppendLine();
+        report.AppendLine("| Property | Value |");
+        report.AppendLine("|----------|-------|");
+        report.AppendLine($"| **Project** | {project.Name} |");
         if (!string.IsNullOrEmpty(project.Description))
         {
-            report.AppendLine($"> **Description:** {project.Description}");
+            report.AppendLine($"| **Description** | {project.Description} |");
         }
-        report.AppendLine($"> **Session ID:** `{session.Id}`");
-        report.AppendLine($"> **Analysis Date:** {session.StartTime:yyyy-MM-dd HH:mm:ss} UTC");
+        report.AppendLine($"| **Session ID** | `{session.Id}` |");
+        report.AppendLine($"| **Analysis Date** | {session.StartTime:yyyy-MM-dd HH:mm:ss} UTC |");
         if (session.EndTime.HasValue)
         {
             var duration = session.EndTime.Value - session.StartTime;
-            report.AppendLine($"> **Duration:** {FormatDuration(duration)}");
+            report.AppendLine($"| **Duration** | {FormatDuration(duration)} |");
         }
+        report.AppendLine($"| **Status** | {session.Status} |");
         report.AppendLine();
     }
 
@@ -274,6 +358,11 @@ public class MarkdownReportService
             return;
         }
 
+        // Generate Mermaid chart for service health visualization
+        GenerateServiceHealthChart(report, analysisResult.ServiceMetrics);
+
+        report.AppendLine("### Service Metrics Table");
+        report.AppendLine();
         report.AppendLine("| Service | Status | Error Rate | Avg Response Time | Total Entries |");
         report.AppendLine("|---------|--------|------------|-------------------|---------------|");
 
@@ -295,6 +384,89 @@ public class MarkdownReportService
         }
 
         report.AppendLine();
+
+        // Generate error rate trend chart
+        GenerateErrorRateTrendChart(report, analysisResult.ServiceMetrics);
+    }
+
+    /// <summary>
+    /// Generate a Mermaid chart showing service health status
+    /// </summary>
+    private void GenerateServiceHealthChart(
+        StringBuilder report,
+        List<ServiceMetrics> serviceMetrics
+    )
+    {
+        report.AppendLine("### Service Health Overview Chart");
+        report.AppendLine();
+        report.AppendLine("```mermaid");
+        report.AppendLine("graph TD");
+
+        foreach (var service in serviceMetrics.Take(10)) // Limit for readability
+        {
+            var status = DetermineServiceStatus(service);
+            var nodeColor = status switch
+            {
+                "Critical" => "fill:#ff4444,stroke:#cc0000,color:#fff",
+                "Degraded" => "fill:#ff8800,stroke:#cc6600,color:#fff",
+                "Warning" => "fill:#ffcc00,stroke:#cc9900,color:#000",
+                "Healthy" => "fill:#44ff44,stroke:#00cc00,color:#000",
+                _ => "fill:#888888,stroke:#666666,color:#fff",
+            };
+
+            var safeServiceName = service.ServiceName.Replace(" ", "_").Replace("-", "_");
+            var errorRate =
+                service.ErrorCount > 0
+                    ? (service.ErrorCount / (double)service.TotalEntries * 100)
+                    : 0;
+
+            report.AppendLine(
+                $"    {safeServiceName}[\"{service.ServiceName}<br/>Error Rate: {errorRate:F1}%<br/>Entries: {service.TotalEntries:N0}\"]"
+            );
+            report.AppendLine($"    style {safeServiceName} {nodeColor}");
+        }
+
+        report.AppendLine("```");
+        report.AppendLine();
+    }
+
+    /// <summary>
+    /// Generate a chart showing error rate trends
+    /// </summary>
+    private void GenerateErrorRateTrendChart(
+        StringBuilder report,
+        List<ServiceMetrics> serviceMetrics
+    )
+    {
+        var servicesWithErrors = serviceMetrics.Where(s => s.ErrorCount > 0).ToList();
+        if (!servicesWithErrors.Any())
+        {
+            return;
+        }
+
+        report.AppendLine("### Error Rate Analysis Chart");
+        report.AppendLine();
+        report.AppendLine("```mermaid");
+        report.AppendLine("xychart-beta");
+        report.AppendLine("    title \"Service Error Rates\"");
+        report.AppendLine(
+            "    x-axis ["
+                + string.Join(", ", servicesWithErrors.Select(s => $"\"{s.ServiceName}\""))
+                + "]"
+        );
+
+        var errorRates = servicesWithErrors
+            .Select(s => s.ErrorCount > 0 ? (s.ErrorCount / (double)s.TotalEntries * 100) : 0)
+            .ToList();
+
+        report.AppendLine(
+            "    y-axis \"Error Rate (%)\" 0 --> " + (errorRates.Max() * 1.1).ToString("F1")
+        );
+        report.AppendLine(
+            "    bar [" + String.Join(", ", errorRates.Select(r => r.ToString("F2"))) + "]"
+        );
+        report.AppendLine("```");
+        report.AppendLine();
     }
 
     private void GenerateAnomaliesSection(StringBuilder report, AnalysisResult analysisResult)
@@ -308,6 +480,9 @@ public class MarkdownReportService
             report.AppendLine();
             return;
         }
+
+        // Generate anomaly distribution chart
+        GenerateAnomalyDistributionChart(report, analysisResult.Anomalies);
 
         // Anomaly summary by severity
         var criticalAnomalies = analysisResult.Anomalies.Where(a => a.Confidence > 0.8).ToList();
@@ -409,6 +584,9 @@ public class MarkdownReportService
             report.AppendLine();
             return;
         }
+
+        // Generate correlation timeline chart
+        GenerateCorrelationTimelineChart(report, analysisResult.Correlations);
 
         report.AppendLine(
             $"Found **{analysisResult.Correlations.Count}** correlation patterns across services:"
@@ -841,6 +1019,70 @@ public class MarkdownReportService
         if (duration.TotalMinutes >= 1)
             return $"{duration.TotalMinutes:F1} minutes";
         return $"{duration.TotalSeconds:F1} seconds";
+    }
+
+    /// <summary>
+    /// Generate Mermaid chart for anomaly distribution
+    /// </summary>
+    private void GenerateAnomalyDistributionChart(StringBuilder report, List<Anomaly> anomalies)
+    {
+        if (!anomalies.Any())
+            return;
+
+        report.AppendLine("### Anomaly Distribution");
+        report.AppendLine();
+        report.AppendLine("```mermaid");
+        report.AppendLine("pie title Anomaly Types");
+
+        var anomalyGroups = anomalies
+            .GroupBy(a => a.Type.ToString())
+            .Select(g => new { Type = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count);
+
+        foreach (var group in anomalyGroups)
+        {
+            report.AppendLine($"    \"{group.Type}\" : {group.Count}");
+        }
+
+        report.AppendLine("```");
+        report.AppendLine();
+    }
+
+    /// <summary>
+    /// Generate Mermaid timeline chart for correlations
+    /// </summary>
+    private void GenerateCorrelationTimelineChart(
+        StringBuilder report,
+        List<LogCorrelation> correlations
+    )
+    {
+        if (!correlations.Any())
+            return;
+
+        report.AppendLine("### Correlation Timeline");
+        report.AppendLine();
+        report.AppendLine("```mermaid");
+        report.AppendLine("gantt");
+        report.AppendLine("    title Correlation Timeline");
+        report.AppendLine("    dateFormat  HH:mm:ss");
+        report.AppendLine("    axisFormat %H:%M");
+
+        foreach (var correlation in correlations.Take(10)) // Limit to avoid clutter
+        {
+            var section = String.Join(", ", correlation.Services.Take(2));
+            if (correlation.Services.Count > 2)
+                section += "...";
+
+            var startTime = correlation.StartTime.ToString("HH:mm:ss");
+            var endTime = correlation.EndTime.ToString("HH:mm:ss");
+            var status = correlation.IsSuccessful ? "done" : "crit";
+
+            report.AppendLine($"    section {section}");
+            report.AppendLine($"    Correlation : {status}, {startTime}, {endTime}");
+        }
+
+        report.AppendLine("```");
+        report.AppendLine();
     }
 
     #endregion

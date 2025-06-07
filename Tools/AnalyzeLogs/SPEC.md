@@ -2,7 +2,27 @@
 
 ## Overview
 
-This plan outlines a step-by-step approach to build a .NET command-line application for analyzing log files from microservice-based systems using AI. The tool will ingest multiple log files (via glob patterns), parse heterogeneous log formats, normalize them to a common schema, and then apply AI-driven analysis. By leveraging a Large Language Model (LLM) and an in-memory vector database, the application will detect patterns and anomalies in logs far beyond simple rule-based methods. Modern AI techniques enable more human-like understanding of logs, catching novel issues and patterns that static analysis might miss. The application will produce a textual report with aggregated metrics (e.g. error rates, request rates) and any detected anomalies or insights. The development plan emphasizes a modular design – each analysis sub-task (chunking, coherence checking, anomaly detection, tagging, etc.) is handled by specialized prompts or components – making the system extensible and easy to maintain.
+This plan outlines a comprehensive .NET command-line application for analyzing log files from microservice-based systems using AI. The tool features project-based organization, natural language querying, intelligent anomaly detection, and rich DocFX-compatible reporting. The application ingests multiple log files via glob patterns, parses heterogeneous log formats, normalizes them to a common schema, and applies AI-driven analysis through specialized pattern-based prompts. Key features include project management for long-term tracking, natural language query engine for data exploration, and DocFX-compatible markdown reports with charts and visualizations.
+
+## Core Features
+
+### Project Management System
+- **Project Organization**: Create and manage analysis projects for different systems or environments
+- **Session Tracking**: Track individual analysis sessions within projects for historical comparison
+- **Persistent Storage**: SQLite database for storing projects, sessions, log entries, and analysis results
+- **Long-term Analytics**: Build historical trends and patterns across multiple analysis sessions
+
+### Natural Language Query Engine
+- **AI-Powered Queries**: Use natural language to query log data and analysis results
+- **Intent Analysis**: AI determines query intent and maps to appropriate data operations
+- **Flexible Results**: Support for aggregations, filtering, pattern matching, and correlation analysis
+- **Markdown Output**: Generate formatted reports from query results
+
+### Enhanced Reporting
+- **DocFX Compatible**: Rich markdown reports with metadata, charts, and structured content
+- **Mermaid Diagrams**: Service health visualizations, correlation timelines, and error rate charts
+- **Interactive Elements**: Tables, collapsible sections, and cross-references
+- **Multi-Format Export**: Console output, markdown files, and structured data formats
 
 ## CLI Input and Log File Ingestion
 
@@ -273,3 +293,147 @@ Each pattern directory contains a `system.md` file with the specialized system p
 *   **Performance**: Direct API integration without intermediate layers
 
 This implementation maintains all the original functionality while providing a more streamlined and maintainable architecture.
+
+## Project Management and Data Persistence
+
+### Project Lifecycle Management
+The application supports a complete project lifecycle from creation to querying:
+
+#### Project Creation and Configuration
+- **Project Metadata**: Name, description, creation timestamp, and configuration settings
+- **Project Settings**: Configure analysis options (coherence, anomaly detection, embeddings, etc.)
+- **Project Isolation**: Each project maintains separate data and analysis history
+- **Configuration Inheritance**: Projects inherit global settings but can override them
+
+#### Session Management
+- **Analysis Sessions**: Each log analysis creates a session within a project
+- **Session Metadata**: Track start time, duration, status, and analysis parameters
+- **Session Correlation**: Link log entries, anomalies, and correlations to specific sessions
+- **Historical Tracking**: Compare sessions over time to identify trends and changes
+
+#### Data Persistence Strategy
+- **SQLite Database**: Lightweight, file-based database for local storage
+- **Schema Design**: Normalized tables for projects, sessions, log entries, anomalies, correlations
+- **Performance Optimization**: Indexes on commonly queried fields (timestamp, service, project)
+- **Data Integrity**: Foreign key constraints and transaction management
+
+### Database Schema Overview
+```sql
+Projects: Id, Name, Description, CreatedAt, LastAnalyzedAt, Settings
+Sessions: Id, ProjectId, SessionName, StartTime, EndTime, Status, Configuration
+LogEntries: Id, SessionId, Timestamp, Level, Service, Message, RawContent, Tags
+Anomalies: Id, SessionId, Type, Confidence, Description, Recommendation, Timestamp
+Correlations: Id, SessionId, StartTime, EndTime, Services, EntryCount, IsSuccessful
+ServiceMetrics: Id, SessionId, ServiceName, TotalEntries, ErrorCount, WarningCount
+```
+
+## Natural Language Query Engine
+
+### Query Processing Architecture
+The query engine transforms natural language questions into database operations and analytical insights:
+
+#### Intent Analysis Pipeline
+1. **Query Preprocessing**: Clean and normalize user input
+2. **Intent Classification**: AI determines query type (aggregation, filtering, pattern search, etc.)
+3. **Parameter Extraction**: Extract entities like service names, time ranges, error types
+4. **Query Generation**: Map intent to appropriate database queries or analysis operations
+5. **Result Processing**: Format and present results in user-friendly format
+
+#### Supported Query Types
+- **Aggregation Queries**: "Show me error counts by service", "What's the average response time?"
+- **Pattern Queries**: "Find all timeout errors", "Show me correlation patterns"
+- **Comparative Queries**: "Compare this session to previous ones", "How has error rate changed?"
+- **Analytical Queries**: "What caused the outage?", "Are there any performance bottlenecks?"
+- **Trend Queries**: "Show me error trends over time", "Which services are improving?"
+
+#### Query Processing Components
+```csharp
+public class QueryService
+{
+    public async Task<QueryResult> ProcessQueryAsync(string query, int? sessionId = null)
+    {
+        var analysis = await AnalyzeQueryIntent(query);
+        var data = await ExtractRelevantData(analysis, sessionId);
+        var result = await GenerateResponse(analysis, data);
+        return result;
+    }
+}
+
+public class QueryAnalysis
+{
+    public QueryType Type { get; set; }
+    public List<string> Services { get; set; }
+    public TimeRange TimeRange { get; set; }
+    public List<string> Keywords { get; set; }
+    public AggregationType AggregationType { get; set; }
+}
+```
+
+### AI-Powered Query Understanding
+- **Pattern-Based Prompts**: Specialized prompts for query analysis and response generation
+- **Context Awareness**: Understand project context and session-specific data
+- **Multi-Turn Conversations**: Support follow-up questions and clarifications
+- **Result Explanation**: Provide context and interpretation of query results
+
+## Enhanced DocFX Reporting System
+
+### Rich Markdown Generation
+The reporting system generates DocFX-compatible markdown with advanced visualizations:
+
+#### DocFX Metadata Integration
+```yaml
+---
+title: Log Analysis Report - ProjectName
+description: Comprehensive analysis report for project ProjectName
+author: AI Log Analysis Tool
+ms.date: 2024-01-15
+ms.topic: analysis-report
+ms.service: log-analysis
+---
+```
+
+#### Mermaid Chart Integration
+- **Service Health Charts**: Visual representation of service status and error rates
+- **Correlation Timelines**: Gantt charts showing cross-service interactions
+- **Anomaly Distribution**: Pie charts and bar graphs of anomaly types and severity
+- **Error Rate Trends**: Line charts tracking error rates over time
+
+#### Interactive Report Elements
+- **Collapsible Sections**: Detailed breakdowns that can be expanded/collapsed
+- **Cross-References**: Links between related sections and findings
+- **Table Enhancements**: Sortable tables with styling and status indicators
+- **Code Blocks**: Properly formatted log excerpts and configuration examples
+
+### Report Structure and Content
+```markdown
+# Executive Summary
+- Overall system health status
+- Key metrics and insights
+- Critical issues requiring attention
+
+# Service Health Dashboard
+- Mermaid charts showing service status
+- Detailed metrics table
+- Error rate analysis charts
+
+# Anomaly Analysis
+- Distribution charts
+- Detailed anomaly breakdown by severity
+- Recommendations and remediation steps
+
+# Cross-Service Correlations
+- Timeline visualizations
+- Correlation strength analysis
+- Service dependency mapping
+
+# Time Series Analysis
+- Event timeline with significant occurrences
+- Trend analysis and pattern identification
+- Performance metrics over time
+```
+
+### Query Result Reporting
+- **Structured Results**: Format query results as markdown tables and charts
+- **Context Information**: Include query metadata and execution details
+- **Visual Enhancements**: Use appropriate charts and diagrams for data visualization
+- **Export Options**: Save results as standalone markdown files or integrate into project reports
