@@ -1209,7 +1209,7 @@ class Program
                     content = new[] { new { files = new[] { "*.md" } } },
                     resource = new[] { new { files = new[] { "images/**" } } },
                     dest = "_site",
-                    template = new[] { "default" },
+                    template = new[] { "default", "modern" },
                     globalMetadata = new
                     {
                         _appTitle = $"Log Analysis Report - {projectName}",

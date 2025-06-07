@@ -14,10 +14,12 @@ public class MarkdownReportService
 {
     private readonly ILogger<MarkdownReportService> _logger;
     private readonly MarkdownPipeline _markdownPipeline;
+    private readonly OpenAIService _openAIService;
 
-    public MarkdownReportService(ILogger<MarkdownReportService> logger)
+    public MarkdownReportService(ILogger<MarkdownReportService> logger, OpenAIService openAIService)
     {
         _logger = logger;
+        _openAIService = openAIService;
         _markdownPipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
     }
 
@@ -52,13 +54,13 @@ public class MarkdownReportService
         GenerateAnalysisOverview(report, analysisResult, logFiles, session);
 
         // Service health dashboard
-        GenerateServiceHealthDashboard(report, analysisResult);
+        await GenerateServiceHealthDashboard(report, analysisResult, project, session);
 
         // Anomalies section with detailed breakdown
-        GenerateAnomaliesSection(report, analysisResult);
+        await GenerateAnomaliesSection(report, analysisResult, project, session);
 
         // Correlations and patterns
-        GenerateCorrelationsSection(report, analysisResult);
+        await GenerateCorrelationsSection(report, analysisResult, project, session);
 
         // Time series analysis
         GenerateTimeSeriesAnalysis(report, analysisResult);
@@ -243,7 +245,8 @@ public class MarkdownReportService
         report.AppendLine($"author: AI Log Analysis Tool");
         report.AppendLine($"ms.date: {DateTime.UtcNow:yyyy-MM-dd}");
         report.AppendLine($"ms.topic: analysis-report");
-        report.AppendLine($"ms.service: log-analysis");        report.AppendLine("---");
+        report.AppendLine($"ms.service: log-analysis");
+        report.AppendLine("---");
         report.AppendLine();
     }
 
@@ -251,7 +254,7 @@ public class MarkdownReportService
     {
         report.AppendLine($"# Log Analysis Report: {project.Name}");
         report.AppendLine();
-        
+
         // Project information table
         report.AppendLine("## 📋 Project Information");
         report.AppendLine();
@@ -346,7 +349,12 @@ public class MarkdownReportService
         report.AppendLine();
     }
 
-    private void GenerateServiceHealthDashboard(StringBuilder report, AnalysisResult analysisResult)
+    private async Task GenerateServiceHealthDashboard(
+        StringBuilder report,
+        AnalysisResult analysisResult,
+        Project project,
+        LogAnalysisSession session
+    )
     {
         report.AppendLine("## 🏥 Service Health Dashboard");
         report.AppendLine();
@@ -359,7 +367,12 @@ public class MarkdownReportService
         }
 
         // Generate Mermaid chart for service health visualization
-        GenerateServiceHealthChart(report, analysisResult.ServiceMetrics);
+        await GenerateEnhancedServiceHealthChart(
+            report,
+            analysisResult.ServiceMetrics,
+            project,
+            session
+        );
 
         report.AppendLine("### Service Metrics Table");
         report.AppendLine();
@@ -386,7 +399,12 @@ public class MarkdownReportService
         report.AppendLine();
 
         // Generate error rate trend chart
-        GenerateErrorRateTrendChart(report, analysisResult.ServiceMetrics);
+        await GenerateEnhancedErrorRateChart(
+            report,
+            analysisResult.ServiceMetrics,
+            project,
+            session
+        );
     }
 
     /// <summary>
@@ -469,7 +487,12 @@ public class MarkdownReportService
         report.AppendLine();
     }
 
-    private void GenerateAnomaliesSection(StringBuilder report, AnalysisResult analysisResult)
+    private async Task GenerateAnomaliesSection(
+        StringBuilder report,
+        AnalysisResult analysisResult,
+        Project project,
+        LogAnalysisSession session
+    )
     {
         report.AppendLine("## 🚨 Anomaly Analysis");
         report.AppendLine();
@@ -482,7 +505,12 @@ public class MarkdownReportService
         }
 
         // Generate anomaly distribution chart
-        GenerateAnomalyDistributionChart(report, analysisResult.Anomalies);
+        await GenerateEnhancedAnomalyDistributionChart(
+            report,
+            analysisResult.Anomalies,
+            project,
+            session
+        );
 
         // Anomaly summary by severity
         var criticalAnomalies = analysisResult.Anomalies.Where(a => a.Confidence > 0.8).ToList();
@@ -573,7 +601,12 @@ public class MarkdownReportService
         }
     }
 
-    private void GenerateCorrelationsSection(StringBuilder report, AnalysisResult analysisResult)
+    private async Task GenerateCorrelationsSection(
+        StringBuilder report,
+        AnalysisResult analysisResult,
+        Project project,
+        LogAnalysisSession session
+    )
     {
         report.AppendLine("## 🔗 Cross-Service Correlations");
         report.AppendLine();
@@ -586,7 +619,12 @@ public class MarkdownReportService
         }
 
         // Generate correlation timeline chart
-        GenerateCorrelationTimelineChart(report, analysisResult.Correlations);
+        await GenerateEnhancedCorrelationTimelineChart(
+            report,
+            analysisResult.Correlations,
+            project,
+            session
+        );
 
         report.AppendLine(
             $"Found **{analysisResult.Correlations.Count}** correlation patterns across services:"
@@ -883,7 +921,831 @@ public class MarkdownReportService
         report.AppendLine();
     }
 
-    #region Helper Methods
+
+    /// <summary>
+    /// Generates enhanced service health chart using AI and creates data validation file
+    /// </summary>
+    private async Task GenerateEnhancedServiceHealthChart(
+        StringBuilder report,
+        List<ServiceMetrics> serviceMetrics,
+        Project project,
+        LogAnalysisSession session
+    )
+    {
+        if (!serviceMetrics.Any())
+        {
+            return;
+        }
+
+        try
+        {
+            // Create data validation table file
+            var dataFilePath = await CreateServiceHealthDataFile(serviceMetrics, project, session);
+
+            // Prepare data for AI
+            var chartData = PrepareServiceHealthData(serviceMetrics);
+
+            // Generate AI-powered Mermaid diagram
+            var aiResponse = await _openAIService.CallPatternAsync(
+                "patterns/generate_mermaid_diagrams/system.md",
+                chartData,
+                "gpt-4o-mini-search-preview-2025-03-11"
+            );
+
+            if (!string.IsNullOrEmpty(aiResponse))
+            {
+                var diagram = ParseMermaidDiagramResponse(aiResponse);
+                if (diagram != null)
+                {
+                    report.AppendLine("### 🎨 AI-Enhanced Service Health Overview");
+                    report.AppendLine();
+                    report.AppendLine($"**{diagram.Title}**");
+                    report.AppendLine();
+                    report.AppendLine($"*{diagram.Description}*");
+                    report.AppendLine();
+                    report.AppendLine("```mermaid");
+                    report.AppendLine(diagram.MermaidCode);
+                    report.AppendLine("```");
+                    report.AppendLine();
+
+                    if (!string.IsNullOrEmpty(diagram.Insights))
+                    {
+                        report.AppendLine($"**💡 Key Insights:** {diagram.Insights}");
+                        report.AppendLine();
+                    }
+
+                    // Add link to validation data
+                    report.AppendLine(
+                        $"📊 [View Raw Data for Validation]({Path.GetFileName(dataFilePath)})"
+                    );
+                    report.AppendLine();
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to generate AI-enhanced service health chart, falling back to standard chart"
+            );
+        }
+
+        // Fallback to standard chart generation
+        GenerateServiceHealthChart(report, serviceMetrics);
+    }
+
+    /// <summary>
+    /// Generates enhanced anomaly distribution chart using AI and creates data validation file
+    /// </summary>
+    private async Task GenerateEnhancedAnomalyDistributionChart(
+        StringBuilder report,
+        List<Anomaly> anomalies,
+        Project project,
+        LogAnalysisSession session
+    )
+    {
+        if (!anomalies.Any())
+        {
+            return;
+        }
+
+        try
+        {
+            // Create data validation table file
+            var dataFilePath = await CreateAnomalyDataFile(anomalies, project, session);
+
+            // Prepare data for AI
+            var chartData = PrepareAnomalyDistributionData(anomalies);
+
+            // Generate AI-powered Mermaid diagram
+            var aiResponse = await _openAIService.CallPatternAsync(
+                "patterns/generate_mermaid_diagrams/system.md",
+                chartData,
+                "gpt-4o-mini-search-preview-2025-03-11"
+            );
+
+            if (!string.IsNullOrEmpty(aiResponse))
+            {
+                var diagram = ParseMermaidDiagramResponse(aiResponse);
+                if (diagram != null)
+                {
+                    report.AppendLine("### 🎨 AI-Enhanced Anomaly Distribution");
+                    report.AppendLine();
+                    report.AppendLine($"**{diagram.Title}**");
+                    report.AppendLine();
+                    report.AppendLine($"*{diagram.Description}*");
+                    report.AppendLine();
+                    report.AppendLine("```mermaid");
+                    report.AppendLine(diagram.MermaidCode);
+                    report.AppendLine("```");
+                    report.AppendLine();
+
+                    if (!string.IsNullOrEmpty(diagram.Insights))
+                    {
+                        report.AppendLine($"**💡 Key Insights:** {diagram.Insights}");
+                        report.AppendLine();
+                    }
+
+                    // Add link to validation data
+                    report.AppendLine(
+                        $"📊 [View Raw Data for Validation]({Path.GetFileName(dataFilePath)})"
+                    );
+                    report.AppendLine();
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to generate AI-enhanced anomaly chart, falling back to standard chart"
+            );
+        }
+
+        // Fallback to standard chart generation
+        GenerateAnomalyDistributionChart(report, anomalies);
+    }
+
+    /// <summary>
+    /// Generates enhanced correlation timeline chart using AI and creates data validation file
+    /// </summary>
+    private async Task GenerateEnhancedCorrelationTimelineChart(
+        StringBuilder report,
+        List<LogCorrelation> correlations,
+        Project project,
+        LogAnalysisSession session
+    )
+    {
+        if (!correlations.Any())
+        {
+            return;
+        }
+
+        try
+        {
+            // Create data validation table file
+            var dataFilePath = await CreateCorrelationDataFile(correlations, project, session);
+
+            // Prepare data for AI
+            var chartData = PrepareCorrelationTimelineData(correlations);
+
+            // Generate AI-powered Mermaid diagram
+            var aiResponse = await _openAIService.CallPatternAsync(
+                "patterns/generate_mermaid_diagrams/system.md",
+                chartData,
+                "gpt-4o-mini-search-preview-2025-03-11"
+            );
+
+            if (!string.IsNullOrEmpty(aiResponse))
+            {
+                var diagram = ParseMermaidDiagramResponse(aiResponse);
+                if (diagram != null)
+                {
+                    report.AppendLine("### 🎨 AI-Enhanced Correlation Timeline");
+                    report.AppendLine();
+                    report.AppendLine($"**{diagram.Title}**");
+                    report.AppendLine();
+                    report.AppendLine($"*{diagram.Description}*");
+                    report.AppendLine();
+                    report.AppendLine("```mermaid");
+                    report.AppendLine(diagram.MermaidCode);
+                    report.AppendLine("```");
+                    report.AppendLine();
+
+                    if (!string.IsNullOrEmpty(diagram.Insights))
+                    {
+                        report.AppendLine($"**💡 Key Insights:** {diagram.Insights}");
+                        report.AppendLine();
+                    }
+
+                    // Add link to validation data
+                    report.AppendLine(
+                        $"📊 [View Raw Data for Validation]({Path.GetFileName(dataFilePath)})"
+                    );
+                    report.AppendLine();
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to generate AI-enhanced correlation chart, falling back to standard chart"
+            );
+        }
+
+        // Fallback to standard chart generation
+        GenerateCorrelationTimelineChart(report, correlations);
+    }
+
+    /// <summary>
+    /// Generates enhanced error rate chart using AI and creates data validation file
+    /// </summary>
+    private async Task GenerateEnhancedErrorRateChart(
+        StringBuilder report,
+        List<ServiceMetrics> serviceMetrics,
+        Project project,
+        LogAnalysisSession session
+    )
+    {
+        var servicesWithErrors = serviceMetrics.Where(s => s.ErrorCount > 0).ToList();
+        if (!servicesWithErrors.Any())
+        {
+            return;
+        }
+
+        try
+        {
+            // Create data validation table file
+            var dataFilePath = await CreateErrorRateDataFile(servicesWithErrors, project, session);
+
+            // Prepare data for AI
+            var chartData = PrepareErrorRateData(servicesWithErrors);
+
+            // Generate AI-powered Mermaid diagram
+            var aiResponse = await _openAIService.CallPatternAsync(
+                "patterns/generate_mermaid_diagrams/system.md",
+                chartData,
+                "gpt-4o-mini-search-preview-2025-03-11"
+            );
+
+            if (!string.IsNullOrEmpty(aiResponse))
+            {
+                var diagram = ParseMermaidDiagramResponse(aiResponse);
+                if (diagram != null)
+                {
+                    report.AppendLine("### 🎨 AI-Enhanced Error Rate Analysis");
+                    report.AppendLine();
+                    report.AppendLine($"**{diagram.Title}**");
+                    report.AppendLine();
+                    report.AppendLine($"*{diagram.Description}*");
+                    report.AppendLine();
+                    report.AppendLine("```mermaid");
+                    report.AppendLine(diagram.MermaidCode);
+                    report.AppendLine("```");
+                    report.AppendLine();
+
+                    if (!string.IsNullOrEmpty(diagram.Insights))
+                    {
+                        report.AppendLine($"**💡 Key Insights:** {diagram.Insights}");
+                        report.AppendLine();
+                    }
+
+                    // Add link to validation data
+                    report.AppendLine(
+                        $"📊 [View Raw Data for Validation]({Path.GetFileName(dataFilePath)})"
+                    );
+                    report.AppendLine();
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to generate AI-enhanced error rate chart, falling back to standard chart"
+            );
+        }
+
+        // Fallback to standard chart generation
+        GenerateErrorRateTrendChart(report, serviceMetrics);
+    }
+
+    /// <summary>
+    /// Prepares service health data for AI chart generation
+    /// </summary>
+    private string PrepareServiceHealthData(List<ServiceMetrics> serviceMetrics)
+    {
+        var dataBuilder = new StringBuilder();
+        dataBuilder.AppendLine("SERVICE HEALTH DATA:");
+        dataBuilder.AppendLine();
+        foreach (var service in serviceMetrics.Take(15)) // Limit for readability
+        {
+            var errorRate =
+                service.ErrorCount > 0
+                    ? (service.ErrorCount / (double)service.TotalEntries * 100)
+                    : 0;
+            var status = DetermineServiceStatus(service);
+
+            dataBuilder.AppendLine($"Service: {service.ServiceName}");
+            dataBuilder.AppendLine($"  Status: {status}");
+            dataBuilder.AppendLine($"  Error Rate: {errorRate:F1}%");
+            dataBuilder.AppendLine($"  Total Entries: {service.TotalEntries:N0}");
+            dataBuilder.AppendLine($"  Error Count: {service.ErrorCount:N0}");
+            dataBuilder.AppendLine($"  Warning Count: {service.WarningCount:N0}");
+            if (service.AverageResponseTime.HasValue)
+            {
+                dataBuilder.AppendLine(
+                    $"  Avg Response Time: {service.AverageResponseTime.Value:F2}ms"
+                );
+            }
+            dataBuilder.AppendLine();
+        }
+
+        dataBuilder.AppendLine(
+            "Please create a service-health diagram showing the health status of these services with appropriate colors and metrics."
+        );
+
+        return dataBuilder.ToString();
+    }
+
+    /// <summary>
+    /// Prepares anomaly distribution data for AI chart generation
+    /// </summary>
+    private string PrepareAnomalyDistributionData(List<Anomaly> anomalies)
+    {
+        var dataBuilder = new StringBuilder();
+        dataBuilder.AppendLine("ANOMALY DISTRIBUTION DATA:");
+        dataBuilder.AppendLine();
+        var anomalyGroups = anomalies
+            .GroupBy(a => a.Type.ToString())
+            .Select(g => new
+            {
+                Type = g.Key,
+                Count = g.Count(),
+                AvgConfidence = g.Average(x => x.Confidence),
+            })
+            .OrderByDescending(x => x.Count)
+            .ToList();
+
+        foreach (var group in anomalyGroups)
+        {
+            dataBuilder.AppendLine($"Anomaly Type: {group.Type}");
+            dataBuilder.AppendLine($"  Count: {group.Count}");
+            dataBuilder.AppendLine($"  Average Confidence: {group.AvgConfidence:F2}");
+            dataBuilder.AppendLine();
+        }
+
+        // Add severity breakdown
+        var criticalCount = anomalies.Count(a => a.Confidence > 0.8);
+        var highCount = anomalies.Count(a => a.Confidence > 0.6 && a.Confidence <= 0.8);
+        var mediumCount = anomalies.Count(a => a.Confidence > 0.4 && a.Confidence <= 0.6);
+        var lowCount = anomalies.Count(a => a.Confidence <= 0.4);
+
+        dataBuilder.AppendLine("SEVERITY BREAKDOWN:");
+        dataBuilder.AppendLine($"Critical (>80%): {criticalCount}");
+        dataBuilder.AppendLine($"High (60-80%): {highCount}");
+        dataBuilder.AppendLine($"Medium (40-60%): {mediumCount}");
+        dataBuilder.AppendLine($"Low (<40%): {lowCount}");
+        dataBuilder.AppendLine();
+        dataBuilder.AppendLine(
+            "Please create an anomaly-distribution diagram showing both the type distribution and severity breakdown."
+        );
+
+        return dataBuilder.ToString();
+    }
+
+    /// <summary>
+    /// Prepares correlation timeline data for AI chart generation
+    /// </summary>
+    private string PrepareCorrelationTimelineData(List<LogCorrelation> correlations)
+    {
+        var dataBuilder = new StringBuilder();
+        dataBuilder.AppendLine("CORRELATION TIMELINE DATA:");
+        dataBuilder.AppendLine();
+
+        foreach (var correlation in correlations.Take(10)) // Limit for readability
+        {
+            dataBuilder.AppendLine($"Correlation ID: {correlation.Id}");
+            dataBuilder.AppendLine($"  Services: {string.Join(", ", correlation.Services)}");
+            dataBuilder.AppendLine($"  Start Time: {correlation.StartTime:HH:mm:ss}");
+            dataBuilder.AppendLine($"  End Time: {correlation.EndTime:HH:mm:ss}");
+            dataBuilder.AppendLine($"  Duration: {correlation.Duration.TotalSeconds:F1}s");
+            dataBuilder.AppendLine($"  Entry Count: {correlation.Entries.Count}");
+            dataBuilder.AppendLine($"  Is Successful: {correlation.IsSuccessful}");
+            dataBuilder.AppendLine($"  Has Errors: {correlation.HasErrors}");
+            dataBuilder.AppendLine();
+        }
+        dataBuilder.AppendLine(
+            "Please create a correlation-timeline diagram showing when services interact and their success/failure patterns."
+        );
+
+        return dataBuilder.ToString();
+    }
+
+    /// <summary>
+    /// Prepares error rate data for AI chart generation
+    /// </summary>
+    private string PrepareErrorRateData(List<ServiceMetrics> servicesWithErrors)
+    {
+        var dataBuilder = new StringBuilder();
+        dataBuilder.AppendLine("ERROR RATE ANALYSIS DATA:");
+        dataBuilder.AppendLine();
+
+        foreach (var service in servicesWithErrors.Take(15)) // Limit for readability
+        {
+            var errorRate = service.ErrorCount / (double)service.TotalEntries * 100;
+            var status = DetermineServiceStatus(service);
+
+            dataBuilder.AppendLine($"Service: {service.ServiceName}");
+            dataBuilder.AppendLine($"  Error Rate: {errorRate:F2}%");
+            dataBuilder.AppendLine($"  Error Count: {service.ErrorCount:N0}");
+            dataBuilder.AppendLine($"  Total Entries: {service.TotalEntries:N0}");
+            dataBuilder.AppendLine($"  Status: {status}");
+            dataBuilder.AppendLine();
+        }
+        dataBuilder.AppendLine(
+            "Please create a performance-trends diagram showing error rates across services with appropriate thresholds and colors."
+        );
+
+        return dataBuilder.ToString();
+    }
+
+    /// <summary>
+    /// Creates a markdown table file with service health data for validation
+    /// </summary>
+    private async Task<string> CreateServiceHealthDataFile(
+        List<ServiceMetrics> serviceMetrics,
+        Project project,
+        LogAnalysisSession session
+    )
+    {
+        var fileName =
+            $"{project.Name}-service-health-data-{session.Id}-{DateTime.Now:yyyyMMdd-HHmmss}.md";
+        var filePath = Path.Combine("docs", fileName);
+
+        var dataTable = new StringBuilder();
+        dataTable.AppendLine($"# Service Health Data - {project.Name}");
+        dataTable.AppendLine();
+        dataTable.AppendLine($"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        dataTable.AppendLine($"**Session:** {session.Id}");
+        dataTable.AppendLine();
+        dataTable.AppendLine("## Raw Service Metrics Data");
+        dataTable.AppendLine();
+        dataTable.AppendLine(
+            "| Service | Status | Error Rate (%) | Error Count | Warning Count | Total Entries | Avg Response Time (ms) |"
+        );
+        dataTable.AppendLine(
+            "|---------|--------|----------------|-------------|---------------|---------------|------------------------|"
+        );
+        foreach (var service in serviceMetrics.OrderBy(s => s.ServiceName))
+        {
+            var errorRate =
+                service.ErrorCount > 0
+                    ? (service.ErrorCount / (double)service.TotalEntries * 100)
+                    : 0;
+            var status = DetermineServiceStatus(service);
+            var avgResponseTime = service.AverageResponseTime?.ToString("F2") ?? "N/A";
+
+            dataTable.AppendLine(
+                $"| {service.ServiceName} | {status} | {errorRate:F2} | {service.ErrorCount:N0} | {service.WarningCount:N0} | {service.TotalEntries:N0} | {avgResponseTime} |"
+            );
+        }
+
+        dataTable.AppendLine();
+        dataTable.AppendLine("## Status Legend");
+        dataTable.AppendLine();
+        dataTable.AppendLine("- **Healthy**: Error rate ≤ 1%");
+        dataTable.AppendLine("- **Warning**: Error rate 1-5%");
+        dataTable.AppendLine("- **Degraded**: Error rate 5-10%");
+        dataTable.AppendLine("- **Critical**: Error rate > 10%");
+
+        // Ensure docs directory exists
+        Directory.CreateDirectory("docs");
+        await File.WriteAllTextAsync(filePath, dataTable.ToString());
+        _logger.LogInformation("Created service health data validation file: {FilePath}", filePath);
+        return filePath;
+    }
+
+    /// <summary>
+    /// Creates a markdown table file with anomaly data for validation
+    /// </summary>
+    private async Task<string> CreateAnomalyDataFile(
+        List<Anomaly> anomalies,
+        Project project,
+        LogAnalysisSession session
+    )
+    {
+        var fileName =
+            $"{project.Name}-anomaly-data-{session.Id}-{DateTime.Now:yyyyMMdd-HHmmss}.md";
+        var filePath = Path.Combine("docs", fileName);
+
+        var dataTable = new StringBuilder();
+        dataTable.AppendLine($"# Anomaly Distribution Data - {project.Name}");
+        dataTable.AppendLine();
+        dataTable.AppendLine($"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        dataTable.AppendLine($"**Session:** {session.Id}");
+        dataTable.AppendLine();
+        dataTable.AppendLine("## Anomaly Type Distribution");
+        dataTable.AppendLine();
+        dataTable.AppendLine("| Type | Count | Percentage | Avg Confidence |");
+        dataTable.AppendLine("|------|-------|------------|----------------|");
+        var anomalyGroups = anomalies
+            .GroupBy(a => a.Type.ToString())
+            .Select(g => new
+            {
+                Type = g.Key,
+                Count = g.Count(),
+                Percentage = (g.Count() / (double)anomalies.Count * 100),
+                AvgConfidence = g.Average(x => x.Confidence),
+            })
+            .OrderByDescending(x => x.Count)
+            .ToList();
+        foreach (var group in anomalyGroups)
+        {
+            dataTable.AppendLine(
+                $"| {group.Type} | {group.Count} | {group.Percentage:F1}% | {group.AvgConfidence:F2} |"
+            );
+        }
+
+        dataTable.AppendLine();
+        dataTable.AppendLine("## Severity Breakdown");
+        dataTable.AppendLine();
+        dataTable.AppendLine("| Severity | Count | Percentage |");
+        dataTable.AppendLine("|----------|-------|------------|");
+
+        var criticalCount = anomalies.Count(a => a.Confidence > 0.8);
+        var highCount = anomalies.Count(a => a.Confidence > 0.6 && a.Confidence <= 0.8);
+        var mediumCount = anomalies.Count(a => a.Confidence > 0.4 && a.Confidence <= 0.6);
+        var lowCount = anomalies.Count(a => a.Confidence <= 0.4);
+        dataTable.AppendLine(
+            $"| Critical (>80%) | {criticalCount} | {(criticalCount / (double)anomalies.Count * 100):F1}% |"
+        );
+        dataTable.AppendLine(
+            $"| High (60-80%) | {highCount} | {(highCount / (double)anomalies.Count * 100):F1}% |"
+        );
+        dataTable.AppendLine(
+            $"| Medium (40-60%) | {mediumCount} | {(mediumCount / (double)anomalies.Count * 100):F1}% |"
+        );
+        dataTable.AppendLine(
+            $"| Low (<40%) | {lowCount} | {(lowCount / (double)anomalies.Count * 100):F1}% |"
+        );
+
+        dataTable.AppendLine();
+        dataTable.AppendLine("## Individual Anomalies (Top 20)");
+        dataTable.AppendLine();
+        dataTable.AppendLine("| ID | Type | Confidence | Description | Timestamp |");
+        dataTable.AppendLine("|----|------|------------|-------------|-----------|");
+        foreach (var anomaly in anomalies.OrderByDescending(a => a.Confidence).Take(20))
+        {
+            var description =
+                anomaly.Description.Length > 100
+                    ? anomaly.Description.Substring(0, 100) + "..."
+                    : anomaly.Description;
+            dataTable.AppendLine(
+                $"| {anomaly.Id} | {anomaly.Type} | {anomaly.Confidence:F2} | {description.Replace("|", "\\|")} | {anomaly.Timestamp:yyyy-MM-dd HH:mm:ss} |"
+            );
+        }
+
+        // Ensure docs directory exists
+        Directory.CreateDirectory("docs");
+        await File.WriteAllTextAsync(filePath, dataTable.ToString());
+        _logger.LogInformation("Created anomaly data validation file: {FilePath}", filePath);
+        return filePath;
+    }
+
+    /// <summary>
+    /// Creates a markdown table file with correlation data for validation
+    /// </summary>
+    private async Task<string> CreateCorrelationDataFile(
+        List<LogCorrelation> correlations,
+        Project project,
+        LogAnalysisSession session
+    )
+    {
+        var fileName =
+            $"{project.Name}-correlation-data-{session.Id}-{DateTime.Now:yyyyMMdd-HHmmss}.md";
+        var filePath = Path.Combine("docs", fileName);
+
+        var dataTable = new StringBuilder();
+        dataTable.AppendLine($"# Correlation Timeline Data - {project.Name}");
+        dataTable.AppendLine();
+        dataTable.AppendLine($"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        dataTable.AppendLine($"**Session:** {session.Id}");
+        dataTable.AppendLine();
+        dataTable.AppendLine("## Cross-Service Correlations");
+        dataTable.AppendLine();
+        dataTable.AppendLine(
+            "| Correlation ID | Services | Start Time | End Time | Duration (s) | Entries | Success | Has Errors |"
+        );
+        dataTable.AppendLine(
+            "|----------------|----------|------------|----------|--------------|---------|---------|------------|"
+        );
+
+        foreach (var correlation in correlations.OrderBy(c => c.StartTime))
+        {
+            var services = string.Join(", ", correlation.Services);
+            if (services.Length > 50)
+            {
+                services = services.Substring(0, 50) + "...";
+            }
+            dataTable.AppendLine(
+                $"| {correlation.Id} | {services} | {correlation.StartTime:HH:mm:ss} | {correlation.EndTime:HH:mm:ss} | {correlation.Duration.TotalSeconds:F1} | {correlation.Entries.Count} | {(correlation.IsSuccessful ? "✅" : "❌")} | {(correlation.HasErrors ? "⚠️" : "✅")} |"
+            );
+        }
+
+        dataTable.AppendLine();
+        dataTable.AppendLine("## Summary Statistics");
+        dataTable.AppendLine();
+        dataTable.AppendLine("| Metric | Value |");
+        dataTable.AppendLine("|--------|-------|");
+        dataTable.AppendLine($"| Total Correlations | {correlations.Count} |");
+        dataTable.AppendLine(
+            $"| Successful Correlations | {correlations.Count(c => c.IsSuccessful)} |"
+        );
+        dataTable.AppendLine(
+            $"| Failed Correlations | {correlations.Count(c => !c.IsSuccessful)} |"
+        );
+        dataTable.AppendLine(
+            $"| Correlations with Errors | {correlations.Count(c => c.HasErrors)} |"
+        );
+        dataTable.AppendLine(
+            $"| Average Duration | {(correlations.Any() ? correlations.Average(c => c.Duration.TotalSeconds) : 0):F1}s |"
+        );
+        dataTable.AppendLine(
+            $"| Average Entry Count | {(correlations.Any() ? correlations.Average(c => c.Entries.Count) : 0):F1} |"
+        );
+
+        // Ensure docs directory exists
+        Directory.CreateDirectory("docs");
+        await File.WriteAllTextAsync(filePath, dataTable.ToString());
+        _logger.LogInformation("Created correlation data validation file: {FilePath}", filePath);
+        return filePath;
+    }
+
+    /// <summary>
+    /// Creates a markdown table file with error rate data for validation
+    /// </summary>
+    private async Task<string> CreateErrorRateDataFile(
+        List<ServiceMetrics> servicesWithErrors,
+        Project project,
+        LogAnalysisSession session
+    )
+    {
+        var fileName =
+            $"{project.Name}-error-rate-data-{session.Id}-{DateTime.Now:yyyyMMdd-HHmmss}.md";
+        var filePath = Path.Combine("docs", fileName);
+
+        var dataTable = new StringBuilder();
+        dataTable.AppendLine($"# Error Rate Analysis Data - {project.Name}");
+        dataTable.AppendLine();
+        dataTable.AppendLine($"**Generated:** {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        dataTable.AppendLine($"**Session:** {session.Id}");
+        dataTable.AppendLine();
+        dataTable.AppendLine("## Error Rate by Service");
+        dataTable.AppendLine();
+        dataTable.AppendLine(
+            "| Service | Error Rate (%) | Error Count | Total Entries | Status | Error Ratio |"
+        );
+        dataTable.AppendLine(
+            "|---------|----------------|-------------|---------------|--------|-------------|"
+        );
+
+        foreach (
+            var service in servicesWithErrors.OrderByDescending(s =>
+                (s.ErrorCount / (double)s.TotalEntries * 100)
+            )
+        )
+        {
+            var errorRate = service.ErrorCount / (double)service.TotalEntries * 100;
+            var status = DetermineServiceStatus(service);
+            var errorRatio = $"{service.ErrorCount}/{service.TotalEntries}";
+
+            dataTable.AppendLine(
+                $"| {service.ServiceName} | {errorRate:F2} | {service.ErrorCount:N0} | {service.TotalEntries:N0} | {status} | {errorRatio} |"
+            );
+        }
+
+        dataTable.AppendLine();
+        dataTable.AppendLine("## Error Rate Categories");
+        dataTable.AppendLine();
+        dataTable.AppendLine("| Category | Count | Services |");
+        dataTable.AppendLine("|----------|-------|----------|");
+        var criticalServices = servicesWithErrors
+            .Where(s => (s.ErrorCount / (double)s.TotalEntries * 100) > 10)
+            .ToList();
+        var degradedServices = servicesWithErrors
+            .Where(s =>
+            {
+                var rate = s.ErrorCount / (double)s.TotalEntries * 100;
+                return rate > 5 && rate <= 10;
+            })
+            .ToList();
+        var warningServices = servicesWithErrors
+            .Where(s =>
+            {
+                var rate = s.ErrorCount / (double)s.TotalEntries * 100;
+                return rate > 1 && rate <= 5;
+            })
+            .ToList();
+        dataTable.AppendLine(
+            $"| Critical (>10%) | {criticalServices.Count} | {string.Join(", ", criticalServices.Select(s => s.ServiceName))} |"
+        );
+        dataTable.AppendLine(
+            $"| Degraded (5-10%) | {degradedServices.Count} | {string.Join(", ", degradedServices.Select(s => s.ServiceName))} |"
+        );
+        dataTable.AppendLine(
+            $"| Warning (1-5%) | {warningServices.Count} | {string.Join(", ", warningServices.Select(s => s.ServiceName))} |"
+        );
+
+        // Ensure docs directory exists
+        Directory.CreateDirectory("docs");
+        await File.WriteAllTextAsync(filePath, dataTable.ToString());
+        _logger.LogInformation("Created error rate data validation file: {FilePath}", filePath);
+        return filePath;
+    }
+
+    /// <summary>
+    /// Represents a parsed Mermaid diagram response from AI
+    /// </summary>
+    private class MermaidDiagram
+    {
+        public string Title { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string MermaidCode { get; set; } = string.Empty;
+        public string Insights { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Parses the AI response containing a Mermaid diagram
+    /// </summary>
+    private MermaidDiagram? ParseMermaidDiagramResponse(string aiResponse)
+    {
+        if (string.IsNullOrEmpty(aiResponse))
+        {
+            return null;
+        }
+
+        try
+        {
+            // Look for DIAGRAM_START and DIAGRAM_END markers
+            var startMarker = "DIAGRAM_START";
+            var endMarker = "DIAGRAM_END";
+
+            var startIndex = aiResponse.IndexOf(startMarker);
+            var endIndex = aiResponse.IndexOf(endMarker);
+
+            if (startIndex == -1 || endIndex == -1 || endIndex <= startIndex)
+            {
+                _logger.LogWarning("AI response does not contain valid diagram markers");
+                return null;
+            }
+
+            var diagramContent = aiResponse
+                .Substring(
+                    startIndex + startMarker.Length,
+                    endIndex - startIndex - startMarker.Length
+                )
+                .Trim();
+            var lines = diagramContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+            var diagram = new MermaidDiagram();
+            var mermaidCodeBuilder = new StringBuilder();
+            bool inMermaidCode = false;
+
+            foreach (var line in lines)
+            {
+                var trimmedLine = line.Trim();
+
+                if (trimmedLine.StartsWith("TITLE:"))
+                {
+                    diagram.Title = trimmedLine.Substring(6).Trim();
+                }
+                else if (trimmedLine.StartsWith("TYPE:"))
+                {
+                    diagram.Type = trimmedLine.Substring(5).Trim();
+                }
+                else if (trimmedLine.StartsWith("DESCRIPTION:"))
+                {
+                    diagram.Description = trimmedLine.Substring(12).Trim();
+                }
+                else if (trimmedLine == "MERMAID_CODE:")
+                {
+                    inMermaidCode = true;
+                }
+                else if (trimmedLine.StartsWith("INSIGHTS:"))
+                {
+                    inMermaidCode = false;
+                    diagram.Insights = trimmedLine.Substring(9).Trim();
+                }
+                else if (inMermaidCode)
+                {
+                    mermaidCodeBuilder.AppendLine(line);
+                }
+            }
+
+            diagram.MermaidCode = mermaidCodeBuilder.ToString().Trim();
+
+            // Validate that we have essential components
+            if (string.IsNullOrEmpty(diagram.Title) || string.IsNullOrEmpty(diagram.MermaidCode))
+            {
+                _logger.LogWarning("AI response missing essential diagram components");
+                return null;
+            }
+
+            return diagram;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse AI Mermaid diagram response");
+            return null;
+        }
+    }
 
     private async Task GenerateKeyInsights(StringBuilder report, AnalysisResult analysisResult)
     {
@@ -1085,5 +1947,4 @@ public class MarkdownReportService
         report.AppendLine();
     }
 
-    #endregion
 }
