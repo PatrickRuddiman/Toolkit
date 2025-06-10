@@ -2,30 +2,95 @@
 
 ## Overview
 
-This plan outlines a comprehensive .NET command-line application for analyzing log files from microservice-based systems using AI. The tool features project-based organization, natural language querying, intelligent anomaly detection, and rich DocFX-compatible reporting. The application ingests multiple log files via glob patterns, parses heterogeneous log formats, normalizes them to a common schema, and applies AI-driven analysis through specialized pattern-based prompts. Key features include project management for long-term tracking, natural language query engine for data exploration, and DocFX-compatible markdown reports with charts and visualizations.
+This plan outlines a comprehensive .NET command-line application for analyzing log files from microservice-based systems using AI. It is designed for developers, DevOps engineers, and Site Reliability Engineers (SREs) to streamline troubleshooting, enhance system observability, and enable proactive issue detection. The tool features project-based organization, natural language querying, intelligent anomaly detection, and rich DocFX-compatible reporting. The application ingests multiple log files via glob patterns, parses heterogeneous log formats, normalizes them to a common schema, and applies AI-driven analysis through specialized pattern-based prompts. Key features include project management for long-term tracking, natural language query engine for data exploration, and DocFX-compatible markdown reports with charts and visualizations. The primary goals are to reduce mean time to resolution (MTTR) for incidents, provide deeper insights into complex system behaviors, and identify potential problems before they impact users.
 
 ## Core Features
 
 ### Project Management System
-- **Project Organization**: Create and manage analysis projects for different systems or environments
-- **Session Tracking**: Track individual analysis sessions within projects for historical comparison
-- **Persistent Storage**: SQLite database for storing projects, sessions, log entries, and analysis results
-- **Long-term Analytics**: Build historical trends and patterns across multiple analysis sessions
+- **Project Organization**: Create and manage analysis projects for different systems or environments.
+    - **Project Data Fields**:
+        - `ProjectId` (PK, GUID): Unique identifier for the project.
+        - `Name` (TEXT, NOT NULL): User-defined name for the project.
+        - `Description` (TEXT): Optional description of the project.
+        - `CreationDate` (DATETIME, NOT NULL): Timestamp of project creation.
+        - `LastAccessedDate` (DATETIME): Timestamp of last project access.
+        - `DefaultLogPathPattern` (TEXT): Default glob pattern for log files associated with this project.
+- **Session Tracking**: Track individual analysis sessions within projects for historical comparison.
+    - **Session Data Fields**:
+        - `SessionId` (PK, GUID): Unique identifier for the analysis session.
+        - `ProjectId` (FK, GUID, NOT NULL): Foreign key linking to the parent project.
+        - `StartTime` (DATETIME, NOT NULL): Timestamp when the analysis session began.
+        - `EndTime` (DATETIME): Timestamp when the analysis session completed or was terminated.
+        - `Status` (TEXT, NOT NULL): Current status of the session (e.g., "Initialized", "Ingesting", "Parsing", "Analyzing", "Reporting", "Completed", "Failed", "Cancelled").
+        - `LogFileCount` (INTEGER): Number of log files processed in the session.
+        - `AnalyzedLogEntryCount` (INTEGER): Total number of log entries analyzed.
+        - `RawInputGlobPattern` (TEXT): The glob pattern used for this specific session.
+        - `ReportFilePath` (TEXT): Path to the generated report file for this session.
+- **Persistent Storage**: SQLite database for storing projects, sessions, log entries, analysis results, and related metadata.
+    - **`LogEntry` Table Schema**:
+        - `LogEntryId` (PK, INTEGER, AUTOINCREMENT): Unique identifier for each log entry.
+        - `SessionId` (FK, GUID, NOT NULL): Foreign key linking to the session this log entry belongs to.
+        - `TimestampUTC` (DATETIME, NOT NULL): The normalized timestamp of the log entry in UTC.
+        - `OriginalTimestamp` (TEXT): The timestamp string as it appeared in the raw log.
+        - `OriginalTimeZone` (TEXT): The original timezone of the timestamp, if detected.
+        - `DetectedFormat` (TEXT): The format detected for this log entry (e.g., "JSON", "NginxAccess", "Syslog", "Unstructured").
+        - `SourceFileName` (TEXT): The name of the file this log entry originated from.
+        - `SourceFilePath` (TEXT): The full path to the source log file.
+        - `RawMessage` (TEXT, NOT NULL): The original, unaltered log line.
+        - `NormalizedMessage` (TEXT): The processed and potentially cleaned-up log message content.
+        - `SeverityLevelId` (FK, INTEGER): Foreign key linking to the `SeverityLevel` table.
+        - `ServiceId` (FK, INTEGER): Foreign key linking to the `Service` table.
+        - `CorrelationId` (TEXT): Extracted correlation ID (e.g., trace ID, request ID).
+        - `ThreadId` (TEXT): Extracted thread ID, if available.
+        - `ProcessId` (TEXT): Extracted process ID, if available.
+        - `AdditionalDataJson` (TEXT): A JSON string storing other structured fields extracted from the log entry (e.g., user ID, session ID, custom key-value pairs).
+        - `EmbeddingVector` (BLOB): Optional, stores the semantic vector embedding of the `NormalizedMessage`.
+    - **`SeverityLevel` Table Schema**:
+        - `SeverityLevelId` (PK, INTEGER, AUTOINCREMENT): Unique ID for the severity level.
+        - `LevelName` (TEXT, UNIQUE, NOT NULL): Standardized severity level name (e.g., "TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "FATAL").
+    - **`Service` Table Schema**:
+        - `ServiceId` (PK, INTEGER, AUTOINCREMENT): Unique ID for the service.
+        - `ServiceName` (TEXT, UNIQUE, NOT NULL): Name of the microservice or component derived from log source or content.
+    - **Other potential tables**: `Anomaly` (to store detected anomalies with links to `LogEntry` and `Session`), `CorrelationGroup` (to group `LogEntry` items by `CorrelationId`).
 
 ### Natural Language Query Engine
-- **AI-Powered Queries**: Use natural language to query log data and analysis results
-- **Intent Analysis**: AI determines query intent and maps to appropriate data operations
-- **Flexible Results**: Support for aggregations, filtering, pattern matching, and correlation analysis
-- **Markdown Output**: Generate formatted reports from query results
+- **AI-Powered Queries**: Use natural language to query log data and analysis results.
+- **Intent Analysis**: AI determines query intent and maps to appropriate data operations. The AI will decide whether to use SQL for structured data queries, vector search for semantic similarity queries, or a combination of both.
+    - Queries targeting specific, known fields (e.g., timestamps, service names, severity levels, specific error codes) will primarily translate to SQL queries against the structured data in SQLite.
+    - Queries focusing on the meaning or similarity of log messages (e.g., "find errors similar to X", "what other logs discuss Y?") will primarily leverage vector search on the stored embeddings.
+    - Hybrid queries (e.g., "show critical errors in the 'user-service' last night that are semantically similar to 'authentication token expired'") will first use SQL to filter by service, severity, and time, then use vector search on the resulting subset to find semantically similar messages, or vice-versa.
+    - Examples:
+        - Query: "Show me all errors from the 'payment-service' between 2 PM and 3 PM yesterday."
+            - Intent: Filter log entries (SQL-focused).
+            - Parameters: `ServiceName` = 'payment-service', `SeverityLevel` = 'ERROR', `TimeRange` = [yesterday 14:00, yesterday 15:00].
+            - Action: Construct and execute a SQL query against the `LogEntry` table joining with `Service` and `SeverityLevel` tables.
+        - Query: "What was the p95 latency for 'order-service' today?"
+            - Intent: Calculate aggregate metric (SQL-focused, potentially with JSON parsing).
+            - Parameters: `Metric` = 'p95 latency', `ServiceName` = 'order-service', `TimeRange` = [today 00:00, today 23:59:59].
+            - Action: Query `LogEntry` table for relevant entries, extract latency from `AdditionalDataJson` (assuming it's stored there), and compute the 95th percentile. This might require custom parsing logic if latency isn't a standard field.
+        - Query: "Find logs containing 'transaction timed out' for user 'user123' in the last hour."
+            - Intent: Text search combined with filtering (SQL-focused with LIKE and JSON path).
+            - Parameters: `SearchText` = 'transaction timed out', `User` = 'user123' (from `AdditionalDataJson`), `TimeRange` = [now - 1 hour, now].
+            - Action: SQL query with `LIKE` operator on `NormalizedMessage` and JSON path expression on `AdditionalDataJson`, filtered by time.
+        - Query: "Are there any unusual error patterns in the 'auth-service' this morning?"
+            - Intent: Anomaly detection request (AI analysis, potentially on SQL-filtered data).
+            - Parameters: `ServiceName` = 'auth-service', `TimeRange` = [today morning].
+            - Action: Trigger a focused AI analysis (using anomaly detection patterns) on the subset of logs for 'auth-service' from that period.
+        - Query: "Find other log entries that are semantically similar to the error message 'database connection timeout' that occurred around 3 PM today."
+            - Intent: Semantic similarity search + time filter (Vector Search-focused).
+            - Parameters: `SearchText` = 'database connection timeout', `TimeRange` = [today 14:55, today 15:05 (example window)], `SimilarityThreshold` = 0.8 (example).
+            - Action: Generate an embedding for the `SearchText`. Query the vector index for `LogEntry` vectors within the `TimeRange` that have a cosine similarity score above the `SimilarityThreshold` to the search text's embedding. Retrieve the corresponding full `LogEntry` details from the SQLite database for the matching entries.
 
 ### Enhanced Reporting
-- **DocFX Compatible**: Rich markdown reports with metadata, charts, and structured content
-- **AI-Powered Mermaid Diagrams**: Dynamic service health visualizations, correlation timelines, error rate charts, and anomaly distributions generated by specialized AI patterns
-- **Data Validation Files**: Raw data markdown tables linked to AI-generated charts for transparency and validation
-- **Interactive Elements**: Tables, collapsible sections, cross-references, and expandable details
-- **Multi-Format Export**: Console output, markdown files, structured data formats, and validation datasets
-- **Comprehensive Appendices**: Generation metadata, data source information, and contextual documentation in all data files
-
+- **DocFX Compatible**: Rich markdown reports with metadata, charts, and structured content.
+- **AI-Powered Mermaid Diagrams**: Dynamic service health visualizations, correlation timelines, error rate charts, and anomaly distributions generated by specialized AI patterns.
+    - Specific diagram types to include:
+        - **Sequence Diagrams**: For visualizing correlated flows of requests across multiple services, based on `CorrelationId` and timestamps.
+        - **State Diagrams**: For illustrating service health transitions (e.g., from "Healthy" to "Degraded" to "Unavailable") based on error rate thresholds or critical anomaly counts over time.
+        - **Gantt Charts**: For showing timelines of operations or specific correlated transactions.
+- **Data Validation Files**: Raw data markdown tables linked to AI-generated charts for transparency and validation.
+    - These will be separate, clearly named markdown files (e.g., `report_projectX_sessionY_chartZ_data.md`).
+    - Each file will contain a markdown table presenting the exact data subset (e.g., specific log entries, aggregated metrics, anomaly details) that was fed into the AI pattern or statistical function to produce a corresponding chart, graph, or insight in the main report. This allows users to manually inspect and verify the basis of the AI's conclusions.
 
 ## CLI Input and Log File Ingestion
 
@@ -34,6 +99,58 @@ Implement the CLI to accept a file path pattern (glob) for `.log` files as an ar
 
 ### 2. File Reading Considerations
 Once file paths are collected, read each log file efficiently. For potentially large log files, prefer streaming line-by-line reading (e.g. using `File.ReadLines` or `StreamReader`) to avoid loading entire files into memory. Ensure the ingestion handles a large number of files and large sizes robustly. You might incorporate parallel reading if I/O bound (using async file I/O) but be mindful of ordering if logs need to be merged by time later. Each log line (or structured entry) will be parsed and transformed into a common `LogEntry` object as described next.
+
+### Detailed CLI Command Structure and User Interaction
+
+#### Command Suite
+The CLI will feature a comprehensive set of commands for managing projects, sessions, and performing analysis:
+- **Project Management**:
+    - `loganalyzer project create --name "ProjectName" --description "Optional Description" --log-pattern "logs/**/*.log"`: Creates a new project.
+    - `loganalyzer project list`: Lists all available projects.
+    - `loganalyzer project select "ProjectName"`: Sets the active project for subsequent session commands (could be an alternative to specifying project in each command).
+    - `loganalyzer project update "ProjectName" [--new-name "NewName"] [--description "NewDesc"] [--log-pattern "new/pattern/*.log"]`: Updates project details.
+    - `loganalyzer project delete "ProjectName"`: Deletes a project and its associated data after confirmation.
+- **Session Management**:
+    - `loganalyzer session start --project "ProjectName" [--glob "specific_run_logs/*.log"] [--name "SessionName"]`: Starts a new analysis session for the specified project. Uses project's default glob if not provided.
+    - `loganalyzer session list --project "ProjectName"`: Lists all sessions for a project.
+    - `loganalyzer session status <sessionId>`: Shows the status and progress of a specific session.
+    - `loganalyzer session delete <sessionId>`: Deletes a session and its associated analysis data after confirmation.
+- **Analysis & Querying**:
+    - `loganalyzer query --project "ProjectName" --session <sessionId> "[Optional initial natural language query]"`: Initiates an interactive chat session for querying the specified session's data. If an initial query is provided, it's executed immediately. Otherwise, the user is prompted. Results are displayed in the console and appended to a continuously updated DocFX-compatible markdown report (e.g., `reports/ProjectName_SessionID_QueryLog_YYYYMMDDHHMMSS.md`). Type "Exit" to end the session.
+    - `loganalyzer analyze <sessionId>`: (If analysis is decoupled from session start) Triggers the full AI analysis pipeline on an existing session's ingested data.
+- **Reporting**:
+    - `loganalyzer report generate <sessionId> --output-path "reports/ProjectName_Report.md" [--format docfx|markdown]`: Generates a report for a completed session.
+- **General Options**:
+    - `--verbose, -v`: Enables verbose output for CLI operations.
+    - `--help, -h`: Displays help information for commands and subcommands.
+
+#### User Prompts & Feedback
+- **Interactive Prompts**: For critical operations like deletion, the CLI will require user confirmation (e.g., "Are you sure you want to delete project 'MySystem'? [y/N]").
+- **Progress Indication**: For long-running operations (ingestion, AI analysis, report generation), the CLI will display progress indicators (e.g., spinners, progress bars, or percentage completion updates) to provide feedback to the user.
+- **Error Messages**: Errors will be reported clearly, indicating the command that failed and a descriptive message of what went wrong and potential next steps.
+
+#### Configuration Management CLI
+This section is no longer applicable as AI configuration is managed globally and not through user-profiles.
+
+## Global Application Configuration
+
+### Global Settings
+- **Database Location**: The default path for the SQLite database file (e.g., `~/.loganalyzer/data/loganalysis.db`). This should be configurable via an environment variable or a setting in the global configuration file.
+- **Default AI Configuration**: A global default `AiConfigId` to use if a project doesn't specify one.
+- **Application Log Level**: Verbosity level for the LogAnalyzer tool's own operational logs (e.g., DEBUG, INFO, WARNING, ERROR).
+- **Default Report Output Directory**: A default directory where reports are saved if `--output-path` is not specified.
+
+### Configuration File
+- **Location**: A global configuration file (e.g., `~/.loganalyzer/config.json` or `%APPDATA%/LogAnalyzer/config.json` on Windows) will store these global settings.
+- **Schema**: The file will use a simple JSON or YAML format. Example:
+  ```json
+  {
+    "databasePath": "~/.loganalyzer/data/loganalysis.db",
+    "defaultAiConfigName": "DefaultOpenAI",
+    "applicationLogLevel": "INFO",
+    "defaultReportOutputPath": "~/Documents/LogAnalyzerReports"
+  }
+  ```
 
 ## Parsing Heterogeneous Log Formats
 
@@ -60,103 +177,6 @@ Once log entries are parsed from their various formats, they need to be normaliz
 - **Additional Metadata**: Store other structured fields (user ID, session ID, etc.) in a flexible dictionary
 
 The normalized `LogEntry` object serves as the foundation for all subsequent analysis and enables consistent processing across heterogeneous log sources.
-
-### 4. Normalizing Fields
-Once log entries are parsed from their various formats, they need to be normalized to a common schema. This unified schema should include:
-
-- **Timestamp**: Convert all timestamps to a consistent format (e.g., UTC `DateTime`)
-- **Level/Severity**: Map log levels (DEBUG, INFO, WARN, ERROR, FATAL, etc.) to a standard enum
-- **Service**: Extract or infer the service name from the log source or content
-- **Message**: The main log message content
-- **Correlation ID**: Extract transaction/request IDs if present for cross-service correlation
-- **Additional Metadata**: Store other structured fields (user ID, session ID, etc.) in a flexible dictionary
-
-The normalized `LogEntry` object serves as the foundation for all subsequent analysis and enables consistent processing across heterogeneous log sources.
-
-## AI-Powered Analysis Engine
-
-### 5. Pattern-Based AI Analysis
-The application leverages specialized AI patterns for intelligent log analysis:
-
-#### Anomaly Detection Patterns
-- **Statistical Analysis**: Detect outliers in log volumes, response times, and error rates
-- **Semantic Analysis**: Use embeddings to identify unusual log messages and patterns
-- **Temporal Analysis**: Detect time-based anomalies and unusual activity patterns
-- **Service Behavior Analysis**: Monitor service health and performance deviations
-
-#### Correlation Analysis Patterns
-- **Cross-Service Tracking**: Follow request flows across microservices using correlation IDs
-- **Error Propagation**: Detect cascade failures and error propagation patterns
-- **Performance Correlation**: Identify relationships between service performance metrics
-- **Dependency Analysis**: Map service dependencies through log interaction patterns
-
-#### Natural Language Query Processing
-- **Intent Recognition**: Parse natural language queries to understand user intent
-- **Query Translation**: Convert natural language to appropriate data operations
-- **Context Awareness**: Maintain session context for follow-up queries
-- **Result Formatting**: Generate human-readable responses from query results
-
-## Enhanced Reporting System
-
-### 6. AI-Enhanced Mermaid Diagram Generation
-The reporting system features a specialized AI pattern dedicated to creating rich visualizations:
-
-#### Diagram Types
-- **Service Health Dashboards**: Real-time health status with color-coded indicators
-- **Anomaly Distribution Charts**: Visual breakdown of anomaly types and severity levels
-- **Correlation Timeline Diagrams**: Interactive timelines showing service interactions
-- **Error Rate Trend Analysis**: Performance trends with threshold indicators
-- **System Architecture Maps**: Dynamic service dependency visualizations
-
-#### AI Pattern Integration
-- **Dedicated Pattern**: `generate_mermaid_diagrams/system.md` for diagram creation
-- **Data Preparation**: Structured data formatting for optimal AI processing
-- **Response Parsing**: Intelligent extraction of diagram components from AI responses
-- **Fallback Mechanisms**: Standard chart generation when AI enhancement fails
-
-### 7. Data Validation and Transparency
-Every AI-generated visualization is accompanied by comprehensive validation data:
-
-#### Validation Files
-- **Raw Data Tables**: Markdown tables with source data used for chart generation
-- **Generation Metadata**: Timestamps, session information, and processing details
-- **Data Source Context**: Explanation of data collection and transformation methods
-- **Quality Metrics**: Statistics on data completeness and accuracy
-
-#### Appendix System
-- **File Metadata**: Generation timestamps, project details, and session tracking
-- **Data Lineage**: Clear documentation of data source and processing chain
-- **Threshold Definitions**: Explanation of status categories and alert levels
-- **Validation Instructions**: Guidelines for verifying AI-generated insights
-
-### 8. DocFX-Compatible Output
-All reports are generated with full DocFX compatibility:
-
-#### Document Structure
-- **YAML Frontmatter**: Complete metadata for documentation systems
-- **Hierarchical Sections**: Properly structured headings and cross-references
-- **Interactive Elements**: Collapsible sections and tabbed content support
-- **Rich Formatting**: Tables, code blocks, callouts, and emphasis
-
-#### Export Capabilities
-- **Standalone Reports**: Self-contained markdown files with embedded charts
-- **Project Integration**: Reports that integrate into existing documentation sites
-- **Multi-Session Analysis**: Historical trend reports across analysis sessions
-- **Query Result Reports**: Formatted outputs from natural language queries
-
-## Project and Session Management
-
-### 9. Enhanced Project Tracking
-- **Long-term Analytics**: Historical analysis across multiple sessions
-- **Trend Detection**: Patterns emerging over time within projects
-- **Baseline Establishment**: Normal behavior patterns for anomaly detection
-- **Performance Regression**: Detection of degrading service performance over time
-
-### 10. Session-Based Analysis
-- **Isolated Analysis**: Each analysis session maintains separate context
-- **Comparative Analysis**: Compare results across different time periods
-- **Incremental Processing**: Support for analyzing new logs against existing baselines
-- **Export Options**: Save results as standalone markdown files or integrate into 
 
 ### 5. Time and Zone Handling
 Ensure all timestamps are parsed into a common timezone and format (e.g. UTC `DateTime`). If logs have different time formats (ISO 8601, epoch, custom formats), use parsing libraries or custom formats to convert them. A unified timeline is needed for correlation and sequencing.
@@ -186,12 +206,7 @@ Not all systems implement correlation IDs. If they’re absent, use temporal and
 *   **Time proximity**: Sort all log entries (from all files) by timestamp. Events from different services that occur very close in time might be related (especially if one is an error and another is a cause or effect). The tool can look for patterns like an error in Service B occurring a few milliseconds after an error in Service A, and flag them as possibly connected.
 *   **Message keywords**: Use key fields or keywords in messages. For example, an order ID or user ID appearing in a log from service A and also in service B’s log could indicate those logs relate to the same entity or request. The parser can be extended to detect such identifiers in text (via regex).
 *   **AI-assisted correlation**: An LLM can further help by analyzing log content to infer connections. For example, the AI could notice that a timeout error in one service follows a slow response log in another service and suggest they are linked. This is an advanced approach: feeding a set of temporally adjacent logs from different sources into the LLM and asking it to identify if they are part of one storyline or separate incidents.
-
-### 11. Building Correlation Data Structures
-Internally, maintain data structures for correlation:
-*   Possibly a dictionary mapping `CorrelationId -> list of LogEntry` for quick grouping.
-*   If no explicit IDs, you might build a graph of events where edges connect events that are likely related (by time or content). However, a simpler approach is grouping by time windows or using AI to cluster related events.
-*   Ensure that when generating reports, you can present correlated events together (for example, show a timeline of a single transaction across services).
+*   **Vector-Search-Assisted Semantic Correlation**: When explicit correlation IDs are absent, use vector search on log message embeddings to find semantically similar entries across different services within a close time proximity. This can uncover related events even if their wording differs significantly, complementing keyword and time-based methods.
 
 ## Integrating an In-Memory Vector Database
 
@@ -205,8 +220,7 @@ Once embeddings are in place:
 *   **Semantic Similarity Queries**: Given a particular log entry (especially an error), find similar occurrences in other services or at other times. For example, if an error message “database connection timeout” appears in one service, a vector search can find log entries in other services that have semantically similar meaning (even if phrased differently). This helps correlate issues that manifest in different systems but have the same root cause. It also helps verify if an anomaly is isolated or widespread by finding if similar logs exist elsewhere.
 *   **Clustering & Pattern Discovery**: By running clustering on the vectors (or even using the nearest-neighbor structure), group logs by similarity. The tool can automatically form clusters of log events that frequently occur (representing normal patterns) and isolate outliers that don’t fit any cluster (potential anomalies). This is a powerful way to let patterns emerge from heterogeneous logs: common events cluster together, rare/new events stick out. The LLM or rules can then focus on those outliers as anomalies.
 *   **Augmenting LLM analysis (RAG)**: The vector store can be used in a Retrieval-Augmented Generation pattern. For any given log or time period being analyzed by the LLM, you could fetch related log entries (via similarity search) to provide more context. For instance, if asking the LLM to explain an error, you might retrieve past occurrences of similar errors (and their resolutions if logged) to feed the LLM as additional context. This helps the LLM give more informed analysis or even guess the cause of an issue by analogy.
-
-Using semantic vectors ensures the analysis isn’t limited to exact keyword matches; the tool captures the meaning of log messages. For example, two error logs with different wording can yield similar embeddings if they describe the same underlying problem. This capability complements traditional analysis and aids the LLM in understanding log data more like a human expert.
+*   **Directly Powering Natural Language Queries**: Enable users to ask for logs based on semantic meaning (e.g., "find logs talking about 'network failures'" even if the exact phrase isn't used) by translating the query into a vector search against `NormalizedMessage` embeddings. The query engine can generate an embedding for the user's natural language query phrase and use that to find relevant log entries.
 
 ## AI Model Selection and API Integration
 
@@ -319,7 +333,7 @@ Design the final output report to be clear and informative. As a CLI, the output
     Include any noteworthy points like “highest throughput at 13:00 was 50 req/sec” etc.
 *   **Anomalies and Alerts**: List the anomalies found. This includes errors or unusual events. Each anomaly entry might include a timestamp, the service/component, and a description. For example: “[Service B] 2025-06-01 12:31:45 – Anomaly: Out-of-memory error occurred, not seen in prior logs. This indicates a potential memory leak.” If multiple anomalies were of the same type, note the count (or group them) to avoid repetition.
 *   **Correlation Insights**: If the analysis found cross-service issues (like a cascade of failures across services), describe those. E.g., “A timeout in Service A at 12:31 led to a user-facing error in Service B (correlated via trace ID 1234).” These narrative insights can be output by the AI (you can prompt it to explain an anomalous sequence) or constructed from the data collected.
-*   **Frequent Patterns / Tags**: If tagging was done, show the results. For instance: “Log Categories: 5 database errors, 3 authentication failures, 20 timeouts, 50 successful operations.” You can highlight if any category spiked abnormally. This gives readers an understanding of what kinds of events dominate the logs.
+*   **Frequent Patterns / Tags**: If tagging was done, show the results. For instance: “Log Categories: 5 database errors, 3 authentication failures, 20 timeouts, 50 successful operations.” You can highlight if any category spiked abnormally. This gives readers an understanding of what types of events dominate the logs.
 *   **Recommendations**: The tool might also output suggestions if applicable. For example, if error rate is high, it might suggest investigating a specific service or scaling resources. This can be hard-coded logic or even an AI-generated suggestion (prompt the LLM: “Given the above findings, suggest possible actions to take.”).
 
 ### 25. Formatting and Clarity
@@ -348,10 +362,45 @@ The modular approach means new log formats or AI patterns can be added with mini
 
 ### 29. Best Practices in Implementation
 *   **Resource Management**: Use `async/await` for I/O and API calls to keep the app responsive. If analyzing very large logs, consider streaming analysis (process entries in batches so you don’t hold millions of logs in memory at once). The vector index can likewise be built in chunks if memory is a concern. Since the requirement is an in-memory DB, we assume logs volume is moderate, but be mindful of memory usage especially with embeddings (each embedding is an array of floats; tens of thousands can consume significant RAM). Optimize by not embedding trivial log lines (you might skip debug/trace level logs for embeddings, for example, to save time and space).
-*   **Error Handling & Logging**: The tool itself should have its own logging (to console or file) for its operations. For example, log when files are being processed, when AI calls are made, and catch exceptions to log them. If an AI call fails, handle it gracefully (e.g., retry once, then skip that analysis for that chunk with a warning). Use `try-catch` around parsing to handle unexpected formats. Also, do not let a failure in one part (like one bad file) halt the entire analysis of others.
+*   **Error Handling & Logging**:
+    *   **Operational Logging**: The tool itself will maintain its own operational logs, separate from the logs it analyzes.
+        *   **Log Levels**: Support standard log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+        *   **Output**: Log to the console (respecting verbosity settings like `--verbose`) and optionally to a rotating file (e.g., `~/.loganalyzer/logs/app.log`).
+        *   **Content**: Logs should include timestamps, module/class originating the log, and a clear message. For example: `[2024-07-25 10:00:05 INFO LogIngestionService] Started ingestion for 5 files matching pattern "*.log".`
+    *   **Failure Modes**:
+        *   **Graceful Exit**: The application should handle critical failures (e.g., invalid API key, database connection issues, unreadable configuration) by exiting gracefully with an informative error message and an appropriate exit code.
+        *   **Partial Failures**: For non-critical errors during a session (e.g., a single log file is unparseable, one AI analysis pattern fails), the tool should log the error, report it in the session status/summary, and attempt to continue with other files or analysis patterns. The goal is to provide as much value as possible even if some parts encounter issues.
+        *   **Retry Mechanisms**: For transient issues like network errors when calling AI APIs, implement retry logic with exponential backoff as mentioned in API integration.
+    *   The tool itself should have its own logging (to console or file) for its operations. For example, log when files are being processed, when AI calls are made, and catch exceptions to log them. If an AI call fails, handle it gracefully (e.g., retry once, then skip that analysis for that chunk with a warning). Use `try-catch` around parsing to handle unexpected formats. Also, do not let a failure in one part (like one bad file) halt the entire analysis of others.
 *   **API Usage Considerations**: Respect rate limits of the AI API. If processing many chunks with LLM, throttle the calls (some APIs allow e.g. 60 calls/minute – implement a simple delay or token bucket if needed). Also consider cost: potentially allow the user to specify which analyses to perform (so they can skip expensive ones). Logging the number of tokens used per run (if the API returns that info) can be useful for the user to gauge cost.
-*   **Security and Privacy**: Logs often contain sensitive information (user data, secrets, etc.). When using an online LLM service, ensure the user is aware that log content is being sent to an external API. Provide options to mask or redact sensitive fields before sending to AI. For example, if a log line contains an email or IP address, you might replace it with placeholders in the prompt (and mention `[EMAIL]` instead) to protect privacy. This can be done via simple regex replacements based on a configurable pattern list.
-*   **Testing**: Develop unit tests for the parsing logic (feed sample log lines and verify the `LogEntry` output). Also test the analysis modules with controlled inputs – you might simulate the LLM responses for known inputs to test how the parsing of AI output works. This ensures the system is reliable and each component works in isolation.
+*   **Security and Privacy**:
+    *   **API Key Security**: API keys are read from environment variables and never stored directly in project configurations or the database.
+    *   **Log Content Awareness**: Users must be informed that log content (even if redacted) is sent to an external AI provider. This should be clear in documentation and potentially a one-time warning/confirmation.
+    *   **Redaction Strategy**:
+        *   **Configurable Patterns**: Allow users to define regular expressions for PII or sensitive data patterns to be redacted (e.g., email addresses, IP addresses, custom tokens). These patterns can be stored globally or per-project.
+        *   **Redaction Method**: Replace matched patterns with a placeholder like `[REDACTED_EMAIL]` or `[REDACTED_IP]`.
+        *   **Pre-AI Step**: Redaction should occur before log data is sent to the AI for analysis or embedding generation.
+    *   **Local Storage Security**:
+        *   **File Permissions**: The SQLite database file and any local configuration files should be created with default user-specific file permissions to limit access.
+        *   **No Sensitive Data in DB (Ideally)**: While log messages are stored, actively avoid storing raw, unredacted highly sensitive information if it can be processed and discarded or heavily anonymized. The `RawMessage` field should store the original line as ingested, but AI interactions should use a redacted version if configured.
+    *   Logs often contain sensitive information (user data, secrets, etc.). When using an online LLM service, ensure the user is aware that log content is being sent to an external API. Provide options to mask or redact sensitive fields before sending to AI. For example, if a log line contains an email or IP address, you might replace it with placeholders in the prompt (and mention `[EMAIL]` instead) to protect privacy. This can be done via simple regex replacements based on a configurable pattern list.
+*   **Testing**:
+    *   **Unit Tests**:
+        *   Cover all parsing logic for different log formats with various valid and malformed sample lines.
+        *   Test normalization functions (timestamp conversion, severity mapping).
+        *   Test individual AI pattern prompt generation and response parsing logic using mock AI service responses.
+        *   Test CLI command argument parsing and validation.
+        *   Test database interaction logic (CRUD operations for projects, sessions, etc.) with an in-memory SQLite instance.
+    *   **Integration Tests**:
+        *   Test the full pipeline from CLI command (`loganalyzer session start`) to report generation for a small, controlled set of log files, using a mock AI service that returns predictable responses.
+        *   Verify interactions between modules (e.g., Ingestion -> Parsing -> Storage -> AI Analysis -> Reporting).
+        *   Test database schema creation and migration, if applicable.
+    *   **End-to-End Tests**:
+        *   Develop scripts that execute key CLI workflows against a set of sample log files.
+        *   These tests might use a dedicated test AI configuration (e.g., a very cheap/fast model or a mock endpoint that simulates AI behavior) to validate the overall functionality.
+        *   Verify the structure and key content of generated reports.
+        *   Test error handling paths by providing invalid inputs or simulating failures (e.g., unreadable log files, AI API errors).
+    *   Develop unit tests for the parsing logic (feed sample log lines and verify the `LogEntry` output). Also test the analysis modules with controlled inputs – you might simulate the LLM responses for known inputs to test how the parsing of AI output works. This ensures the system is reliable and each component works in isolation.
 *   **Performance Tuning**: If the log analysis might be rerun frequently or on similar data, consider caching embeddings or AI results. For instance, you could cache the embedding of each unique log message text (so identical lines aren’t embedded twice). Similarly, if using the AI to analyze identical chunks (unlikely in one run, but maybe across runs), cache results. However, caching is secondary; first make it correct and modular.
 *   **Documentation**: Clearly document how to use the CLI (accepted patterns, options) and what each part of the output means. Also document how to extend the system (e.g., how to add a new parser or what prompt templates are used), so future developers or even AI coding agents can easily continue the work.
 
@@ -433,11 +482,26 @@ The application supports a complete project lifecycle from creation to querying:
 The query engine transforms natural language questions into database operations and analytical insights:
 
 #### Intent Analysis Pipeline
-1. **Query Preprocessing**: Clean and normalize user input
-2. **Intent Classification**: AI determines query type (aggregation, filtering, pattern search, etc.)
-3. **Parameter Extraction**: Extract entities like service names, time ranges, error types
-4. **Query Generation**: Map intent to appropriate database queries or analysis operations
-5. **Result Processing**: Format and present results in user-friendly format
+1. **Query Preprocessing**: Clean and normalize user input (e.g., lowercasing, removing punctuation, correcting typos if feasible).
+2. **Intent Classification**: AI determines query type (e.g., aggregation, filtering, pattern search, semantic similarity, anomaly lookup, trend analysis).
+3. **Parameter Extraction**: Extract key entities from the query, such as service names, time ranges (absolute or relative like "yesterday", "last hour"), error types/messages, keywords, user IDs, correlation IDs, and desired metrics (e.g., "count", "p95 latency").
+4. **Query Generation**: Map the intent and extracted parameters to appropriate actions:
+    - Construct SQL queries for structured data retrieval and aggregation from SQLite tables (`LogEntry`, `Service`, `SeverityLevel`, etc.).
+    - Generate vector search parameters (including embedding the query text if necessary) for semantic similarity searches against the `EmbeddingVector` in the `LogEntry` table or a dedicated vector index.
+    - Formulate a hybrid approach, which might involve:
+        - Filtering a dataset using SQL, then performing a vector search on the results.
+        - Performing a vector search, then further refining or augmenting results with SQL queries on the identified log entries.
+        - Triggering specific AI analysis patterns (e.g., anomaly detection) on data retrieved via SQL or vector search.
+5. **Result Processing**: Format and present results in a user-friendly format, which could be textual summaries, tables, or inputs for generating visualizations. If the query was ambiguous or results are unexpected, the system might prompt the user for clarification.
+
+#### Interactive Query Session
+- Upon invoking `loganalyzer query`, the user enters an interactive chat loop.
+- The user can type natural language queries. The system processes each query through the Intent Analysis Pipeline.
+- **Console Output**: Query results (summaries, tables, textual answers) are displayed directly in the console.
+- **Dynamic Report Generation**: Simultaneously, a Rich Markdown document (DocFX compatible) is created or updated for the interactive session (e.g., `reports/ProjectName_SessionID_QueryLog_YYYYMMDDHHMMSS.md`). Each query and its corresponding rich result (including Mermaid diagrams, data tables, and textual explanations) are appended to this document.
+    - This report will include appropriate DocFX metadata and will be structured to clearly delineate individual queries and their outputs.
+- **Mermaid and Data Tables**: Where applicable (e.g., queries asking for trends, distributions, or specific data sets), the markdown report will include AI-generated Mermaid diagrams and formatted data tables.
+- **Exiting**: The user can type "Exit" (case-insensitive) at any point to gracefully terminate the interactive chat session. The generated markdown report is finalized and saved.
 
 #### Supported Query Types
 - **Aggregation Queries**: "Show me error counts by service", "What's the average response time?"
@@ -453,6 +517,10 @@ The query engine transforms natural language questions into database operations 
 - **Result Explanation**: Provide context and interpretation of query results
 
 ## Enhanced DocFX Reporting System
+
+This system is responsible for generating comprehensive, well-structured, and visually rich reports in DocFX-compatible markdown format. Reports are generated in two main scenarios:
+1.  By the `loganalyzer report generate <sessionId>` command, producing a full analysis report for a session including any queries the user may have run.
+2.  Dynamically during an interactive `loganalyzer query` session, where each query and its results are appended to a running markdown document.
 
 ### Rich Markdown Generation
 The reporting system generates DocFX-compatible markdown with advanced visualizations:
@@ -483,41 +551,35 @@ ms.service: log-analysis
 - **Code Blocks**: Properly formatted log excerpts and configuration examples
 
 #### Detailed Anomaly Reports
-For each detected anomaly, generate a detailed report section as its own markdown file.
-the report should use a researcher pattern and a search enabled llm model to research the error and provide insights, remediation steps, and potential impacts.
+For each detected anomaly, generate a detailed report section, potentially as its own linked markdown file (e.g., `anomaly_details_XYZ.md`) to keep the main report concise.
+The report should use a "Researcher Pattern" with a search-enabled LLM model to research the error and provide insights, remediation steps, and potential impacts.
+
+- **Scope of "Research"**:
+    - The primary source for research will be the LLM's general knowledge base.
+    - If the "search-enabled LLM model" implies a model with built-in web search capabilities (like some versions of GPT or custom setups with integrated search APIs), it can use that to find publicly available information, documentation, or common solutions related to the error message or observed pattern.
+    - The system will NOT be pre-configured to search internal/private knowledge bases unless explicitly extended to do so. The initial scope is general knowledge and public web search if the model supports it.
+- **Context for Research**:
+    - **Log Context**: Provide the specific `LogEntry` (or `RawMessage`) that triggered the anomaly.
+    - **Temporal Context**: Include a segment of logs surrounding the anomaly, e.g., 5 minutes of `NormalizedMessage` data before and 5 minutes after the anomalous entry, from the same `SourceFileName` or `ServiceId` if possible. This helps the LLM understand the immediate sequence of events.
+    - **Anomaly Description**: Include any initial assessment of the anomaly (e.g., "Error rate spike", "Unusual error message", "Missing correlation").
+- **Output Structure for Detailed Anomaly Report**: Each detailed report should aim for a structured output:
+    - **Anomaly Summary**: Brief restatement of the anomaly.
+    - **Log Excerpt**: The specific log line(s) identified as anomalous.
+    - **Potential Causes**: Based on LLM research, list common or likely causes for this type of error/pattern.
+    - **Suggested Remediation Steps**: Actionable steps to diagnose or fix the issue.
+    - **Potential Impacts**: What could be the consequences if this anomaly is not addressed (e.g., service degradation, data loss, security vulnerability).
+    - **References (if applicable)**: Links to external documentation or articles if the LLM's search capability provided them.
+- **Prompt for Researcher Pattern**:
+  ```markdown
+  System: You are an expert SRE and software diagnostician. Given an anomalous log entry, surrounding log context, and an initial anomaly description, your task is to research this anomaly. Provide potential causes, suggest remediation steps, and outline potential impacts. If you have search capabilities and find relevant external resources, cite them.
+
+  User:
+  Anomaly Detected: High rate of '503 Service Unavailable' errors.
+  Anomalous Log Entry: `[2024-07-25 14:30:15 ERROR payment-service] Request to downstream inventory-service failed with HTTP 503.`
+  Surrounding Log Context (5 mins before/after):
+  ... (paste relevant log lines here) ...
+
+  Please provide your analysis.
+  ```
+
 With the research pattern, provide the log file along with 5 minutes of context before and after the error to the llm model.
-
-
-### Report Structure and Content
-```markdown
-# Executive Summary
-- Overall system health status
-- Key metrics and insights
-- Critical issues requiring attention
-
-# Service Health Dashboard
-- Mermaid charts showing service status
-- Detailed metrics table
-- Error rate analysis charts
-
-# Anomaly Analysis
-- Distribution charts
-- Detailed anomaly breakdown by severity
-- Recommendations and remediation steps
-
-# Cross-Service Correlations
-- Timeline visualizations
-- Correlation strength analysis
-- Service dependency mapping
-
-# Time Series Analysis
-- Event timeline with significant occurrences
-- Trend analysis and pattern identification
-- Performance metrics over time
-```
-
-### Query Result Reporting
-- **Structured Results**: Format query results as markdown tables and charts
-- **Context Information**: Include query metadata and execution details
-- **Visual Enhancements**: Use appropriate charts and diagrams for data visualization
-- **Export Options**: Save results as standalone markdown files or integrate into project reports
