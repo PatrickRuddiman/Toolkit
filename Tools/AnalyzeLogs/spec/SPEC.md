@@ -1,8 +1,66 @@
-# Development Plan: .NET CLI Application for Log Analysis with AI
+# Log Analysis Tool - Complete Specification
 
 ## Overview
 
-This plan outlines a comprehensive .NET command-line application for analyzing log files from microservice-based systems using AI. It is designed for developers, DevOps engineers, and Site Reliability Engineers (SREs) to streamline troubleshooting, enhance system observability, and enable proactive issue detection. The tool features project-based organization, natural language querying, intelligent anomaly detection, and rich DocFX-compatible reporting. The application ingests multiple log files via glob patterns, parses heterogeneous log formats, normalizes them to a common schema, and applies AI-driven analysis through specialized pattern-based prompts. Key features include project management for long-term tracking, natural language query engine for data exploration, and DocFX-compatible markdown reports with charts and visualizations. The primary goals are to reduce mean time to resolution (MTTR) for incidents, provide deeper insights into complex system behaviors, and identify potential problems before they impact users.
+This document serves as the master specification for a comprehensive .NET command-line application for analyzing log files from microservice-based systems using AI. The specification has been broken down into focused modules for easier navigation and AI-assisted development.
+
+## Specification Modules
+
+This complete specification is organized into the following focused modules:
+
+### [01. Overview](01-overview.md)
+Project overview, key features, primary goals, target users, and architecture philosophy.
+
+### [02. Project Management](02-project-management.md)
+Unified project-based organization, analysis run tracking, persistent storage, and project lifecycle management.
+
+### [03. CLI Commands](03-cli-commands.md)
+Complete command structure, user interface design, interactive prompts, and usage examples.
+
+### [04. Configuration](04-configuration.md)
+Global configuration system, environment variables, security considerations, and configuration management.
+
+### [05. Log Ingestion](05-log-ingestion.md)
+File input handling, glob pattern support, format detection, parsing pipeline, and data normalization.
+
+### [06. Correlation Analysis](06-correlation-analysis.md)
+Cross-service log correlation, time-based and semantic correlation strategies, and relationship analysis.
+
+### [07. Vector Database](07-vector-database.md)
+In-memory vector database setup, semantic search capabilities, embedding generation, and clustering.
+
+### [08. AI Integration](08-ai-integration.md)
+OpenAI integration architecture, pattern-based prompt system, specialized analysis agents, and response processing.
+
+### [09. Query Engine](09-query-engine.md)
+Natural language query processing, intent analysis pipeline, interactive sessions, and AI-powered understanding.
+
+### [10. Reporting System](10-reporting-system.md)
+DocFX-compatible reporting, Mermaid diagram generation, data validation files, and interactive session reports.
+
+### [11. Architecture](11-architecture.md)
+Modular architecture design, extensibility framework, best practices implementation, and testing strategy.
+
+### [12. Data Models](12-data-models.md)
+Complete database schema, entity models, relationships, indexing strategy, and data transfer objects.
+
+## How to Use This Specification
+
+Each module is designed to be:
+- **Self-contained**: Can be read independently for specific topics
+- **AI-friendly**: Optimized for AI-assisted development and code generation
+- **Cross-referenced**: Links to related modules where appropriate
+- **Implementation-ready**: Contains concrete examples and code patterns
+
+## Development Approach
+
+When implementing this system:
+1. Start with the foundational modules (01-04) for understanding scope and architecture
+2. Implement core functionality following modules 05-08 for data processing and AI integration
+3. Add advanced features from modules 09-12 for querying, reporting, and data management
+4. Use module 11 (Architecture) as a guide for best practices throughout development
+
+This modular approach enables incremental development while maintaining architectural coherence and system quality.
 
 ## Core Features
 
