@@ -1,0 +1,64 @@
+{
+  "json_log": {
+    "timestampUTC": "2025-06-10T14:30:00Z",
+    "originalTimestamp": "2025-06-10T14:30:00Z",
+    "originalTimeZone": "UTC",
+    "detectedFormat": "JSON",
+    "normalizedMessage": "User login successful",
+    "severityLevel": {
+      "levelName": "INFO"
+    },
+    "service": {
+      "serviceName": "user-service"
+    },
+    "correlationId": null,
+    "threadId": null,
+    "processId": null,
+    "additionalDataJson": "{\"userId\": \"user123\"}"
+  },
+  "text_log": {
+    "timestampUTC": "2025-06-10T14:31:00Z",
+    "originalTimestamp": "2025-06-10 14:31:00",
+    "originalTimeZone": null,
+    "detectedFormat": "Syslog",
+    "normalizedMessage": "Authentication token issued for user user123",
+    "severityLevel": {
+      "levelName": "INFO"
+    },
+    "service": {
+      "serviceName": "auth-service"
+    },
+    "correlationId": null,
+    "threadId": null,
+    "processId": null,
+    "additionalDataJson": null
+  },
+  "unstructured_log": {
+    "timestampUTC": "2025-06-10T14:35:20Z",
+    "originalTimestamp": "2025-06-10 14:35:20",
+    "originalTimeZone": null,
+    "detectedFormat": "Unstructured",
+    "normalizedMessage": "Service health check completed successfully. All systems operational.",
+    "severityLevel": {
+      "levelName": "INFO"
+    },
+    "service": null,
+    "correlationId": null,
+    "threadId": null,
+    "processId": null,
+    "additionalDataJson": null
+  },
+  "malformed_log": {
+    "timestampUTC": "2025-06-10T14:34:00Z",
+    "originalTimestamp": null,
+    "originalTimeZone": null,
+    "detectedFormat": "Unstructured",
+    "normalizedMessage": "This is not a properly formatted log entry",
+    "severityLevel": null,
+    "service": null,
+    "correlationId": null,
+    "threadId": null,
+    "processId": null,
+    "additionalDataJson": null
+  }
+}

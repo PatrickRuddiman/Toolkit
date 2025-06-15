@@ -1,0 +1,5 @@
+{"timestamp": "2025-06-10T14:30:00Z", "level": "INFO", "service": "user-service", "message": "User login successful", "userId": "user123"}
+{"timestamp": "2025-06-10T14:30:05Z", "level": "ERROR", "service": "payment-service", "message": "Payment processing failed", "orderId": "order456", "errorCode": "PAYMENT_DECLINED"}
+{"timestamp": "2025-06-10T14:30:10Z", "level": "WARN", "service": "inventory-service", "message": "Low stock alert for product SKU-789", "productId": "SKU-789", "stockLevel": 5, "threshold": 10}
+{"timestamp": "2025-06-10T14:30:15Z", "level": "INFO", "service": "notification-service", "message": "Email notification sent", "recipient": "user@example.com", "templateId": "order-confirmation"}
+{"timestamp": "2025-06-10T14:30:20Z", "level": "DEBUG", "service": "order-service", "message": "Order validation completed", "orderId": "order456", "validationTimeMs": 45}

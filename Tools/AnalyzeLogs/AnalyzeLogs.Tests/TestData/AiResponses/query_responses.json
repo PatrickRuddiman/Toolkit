@@ -1,0 +1,64 @@
+{
+  "time_range_query": {
+    "queryType": "filter",
+    "parameters": {
+      "timeRange": {
+        "start": "2025-06-09T00:00:00Z",
+        "end": "2025-06-09T23:59:59Z"
+      },
+      "severityLevel": "ERROR"
+    },
+    "description": "Retrieve error logs from yesterday",
+    "sqlQuery": "SELECT * FROM LogEntry WHERE TimestampUTC >= '2025-06-09T00:00:00Z' AND TimestampUTC <= '2025-06-09T23:59:59Z' AND SeverityLevelId IN (SELECT SeverityLevelId FROM SeverityLevel WHERE LevelName = 'ERROR')"
+  },
+  
+  "service_query": {
+    "queryType": "filter",
+    "parameters": {
+      "serviceName": "payment-service",
+      "timeRange": {
+        "start": "2025-06-10T12:00:00Z",
+        "end": "2025-06-10T14:00:00Z"
+      }
+    },
+    "description": "Find payment service logs between specified times",
+    "sqlQuery": "SELECT * FROM LogEntry WHERE ServiceId IN (SELECT ServiceId FROM Service WHERE ServiceName = 'payment-service') AND TimestampUTC >= '2025-06-10T12:00:00Z' AND TimestampUTC <= '2025-06-10T14:00:00Z'"
+  },
+  
+  "semantic_query": {
+    "queryType": "vector_search",
+    "parameters": {
+      "searchText": "database connection timeout",
+      "similarityThreshold": 0.7,
+      "limit": 10
+    },
+    "description": "Find logs semantically similar to 'database connection timeout'",
+    "vectorOperation": "Find logEntries similar to embedding(database connection timeout) with cosine similarity > 0.7"
+  },
+  
+  "hybrid_query": {
+    "queryType": "hybrid",
+    "parameters": {
+      "serviceName": "auth-service",
+      "searchText": "authentication token expired",
+      "similarityThreshold": 0.75,
+      "limit": 5
+    },
+    "description": "Find auth service logs similar to 'authentication token expired'",
+    "sqlQuery": "SELECT LogEntryId FROM LogEntry WHERE ServiceId IN (SELECT ServiceId FROM Service WHERE ServiceName = 'auth-service')",
+    "vectorOperation": "On results from SQL, find entries similar to embedding(authentication token expired) with cosine similarity > 0.75"
+  },
+  
+  "anomaly_query": {
+    "queryType": "analysis",
+    "parameters": {
+      "analysisType": "anomaly_detection",
+      "timeRange": {
+        "start": "2025-06-10T00:00:00Z",
+        "end": "2025-06-10T23:59:59Z"
+      }
+    },
+    "description": "Detect anomalies in today's logs",
+    "analysisOperation": "Perform anomaly detection on logs from 2025-06-10"
+  }
+}

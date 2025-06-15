@@ -1,0 +1,9 @@
+{
+  "connection_timeout": "Found 1 anomaly:\n1. Connection timeout in the order-service at 2025-06-10T14:31:30Z. This indicates a potential network issue or an unresponsive downstream service. The service was unable to retrieve product information, which could impact order processing flow.",
+  
+  "sequence_anomaly": "Found 2 anomalies:\n1. Request to API Gateway at 2025-06-10T14:33:00Z shows no corresponding response record within expected timeframe.\n2. Database query at 2025-06-10T14:33:20Z was abnormally slow (215ms), significantly above the average query time. This could indicate an inefficient query, missing index, or database performance issues.",
+  
+  "standard_logs": "Found 3 anomalies:\n1. Payment processing failed at 2025-06-10T14:30:05Z with error code PAYMENT_DECLINED. This indicates a transaction failure that requires attention.\n2. Low stock alert for product SKU-789 at 2025-06-10T14:30:10Z. Current stock (5) is below the configured threshold (10).\n3. Invalid credentials provided for user user456 at 2025-06-10T14:31:15Z. This could indicate a potential security issue or user error.",
+  
+  "no_anomalies": "No anomalies detected in the provided log entries. All operations appear to be functioning normally within expected parameters."
+}
