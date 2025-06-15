@@ -7,7 +7,7 @@ This plan outlines a comprehensive .NET command-line application for analyzing l
 ## Core Features
 
 ### Project Management System
-- **Project Organization**: Create and manage analysis projects for different systems or environments.
+- **Unified Project-Based Organization**: Create and manage analysis projects that track all analysis runs for different systems or environments.
     - **Project Data Fields**:
         - `ProjectId` (PK, GUID): Unique identifier for the project.
         - `Name` (TEXT, NOT NULL): User-defined name for the project.
@@ -15,21 +15,22 @@ This plan outlines a comprehensive .NET command-line application for analyzing l
         - `CreationDate` (DATETIME, NOT NULL): Timestamp of project creation.
         - `LastAccessedDate` (DATETIME): Timestamp of last project access.
         - `DefaultLogPathPattern` (TEXT): Default glob pattern for log files associated with this project.
-- **Session Tracking**: Track individual analysis sessions within projects for historical comparison.
-    - **Session Data Fields**:
-        - `SessionId` (PK, GUID): Unique identifier for the analysis session.
+- **Analysis Run Tracking**: Track individual analysis runs within projects for historical comparison and trend analysis.
+    - **Analysis Run Data Fields**:
+        - `AnalysisRunId` (PK, GUID): Unique identifier for the analysis run.
         - `ProjectId` (FK, GUID, NOT NULL): Foreign key linking to the parent project.
-        - `StartTime` (DATETIME, NOT NULL): Timestamp when the analysis session began.
-        - `EndTime` (DATETIME): Timestamp when the analysis session completed or was terminated.
-        - `Status` (TEXT, NOT NULL): Current status of the session (e.g., "Initialized", "Ingesting", "Parsing", "Analyzing", "Reporting", "Completed", "Failed", "Cancelled").
-        - `LogFileCount` (INTEGER): Number of log files processed in the session.
+        - `StartTime` (DATETIME, NOT NULL): Timestamp when the analysis run began.
+        - `EndTime` (DATETIME): Timestamp when the analysis run completed or was terminated.
+        - `Status` (TEXT, NOT NULL): Current status of the run (e.g., "Initialized", "Ingesting", "Parsing", "Analyzing", "Reporting", "Completed", "Failed", "Cancelled").
+        - `LogFileCount` (INTEGER): Number of log files processed in the run.
         - `AnalyzedLogEntryCount` (INTEGER): Total number of log entries analyzed.
-        - `RawInputGlobPattern` (TEXT): The glob pattern used for this specific session.
-        - `ReportFilePath` (TEXT): Path to the generated report file for this session.
-- **Persistent Storage**: SQLite database for storing projects, sessions, log entries, analysis results, and related metadata.
+        - `RawInputGlobPattern` (TEXT): The glob pattern used for this specific run.
+        - `ReportFilePath` (TEXT): Path to the generated report file for this run.
+        - `RunName` (TEXT): Optional user-defined name for the analysis run (e.g., "Morning Incident Analysis", "Weekly Review").
+- **Persistent Storage**: SQLite database for storing projects, analysis runs, log entries, analysis results, and related metadata.
     - **`LogEntry` Table Schema**:
         - `LogEntryId` (PK, INTEGER, AUTOINCREMENT): Unique identifier for each log entry.
-        - `SessionId` (FK, GUID, NOT NULL): Foreign key linking to the session this log entry belongs to.
+        - `AnalysisRunId` (FK, GUID, NOT NULL): Foreign key linking to the analysis run this log entry belongs to.
         - `TimestampUTC` (DATETIME, NOT NULL): The normalized timestamp of the log entry in UTC.
         - `OriginalTimestamp` (TEXT): The timestamp string as it appeared in the raw log.
         - `OriginalTimeZone` (TEXT): The original timezone of the timestamp, if detected.
@@ -51,7 +52,7 @@ This plan outlines a comprehensive .NET command-line application for analyzing l
     - **`Service` Table Schema**:
         - `ServiceId` (PK, INTEGER, AUTOINCREMENT): Unique ID for the service.
         - `ServiceName` (TEXT, UNIQUE, NOT NULL): Name of the microservice or component derived from log source or content.
-    - **Other potential tables**: `Anomaly` (to store detected anomalies with links to `LogEntry` and `Session`), `CorrelationGroup` (to group `LogEntry` items by `CorrelationId`).
+    - **Other potential tables**: `Anomaly` (to store detected anomalies with links to `LogEntry` and `AnalysisRun`), `CorrelationGroup` (to group `LogEntry` items by `CorrelationId`).
 
 ### Natural Language Query Engine
 - **AI-Powered Queries**: Use natural language to query log data and analysis results.
@@ -89,7 +90,7 @@ This plan outlines a comprehensive .NET command-line application for analyzing l
         - **State Diagrams**: For illustrating service health transitions (e.g., from "Healthy" to "Degraded" to "Unavailable") based on error rate thresholds or critical anomaly counts over time.
         - **Gantt Charts**: For showing timelines of operations or specific correlated transactions.
 - **Data Validation Files**: Raw data markdown tables linked to AI-generated charts for transparency and validation.
-    - These will be separate, clearly named markdown files (e.g., `report_projectX_sessionY_chartZ_data.md`).
+    - These will be separate, clearly named markdown files (e.g., `report_projectX_runY_chartZ_data.md`).
     - Each file will contain a markdown table presenting the exact data subset (e.g., specific log entries, aggregated metrics, anomaly details) that was fed into the AI pattern or statistical function to produce a corresponding chart, graph, or insight in the main report. This allows users to manually inspect and verify the basis of the AI's conclusions.
 
 ## CLI Input and Log File Ingestion
@@ -103,23 +104,20 @@ Once file paths are collected, read each log file efficiently. For potentially l
 ### Detailed CLI Command Structure and User Interaction
 
 #### Command Suite
-The CLI will feature a comprehensive set of commands for managing projects, sessions, and performing analysis:
+The CLI will feature a comprehensive set of commands for managing projects and performing analysis:
 - **Project Management**:
     - `loganalyzer project create --name "ProjectName" --description "Optional Description" --log-pattern "logs/**/*.log"`: Creates a new project.
     - `loganalyzer project list`: Lists all available projects.
-    - `loganalyzer project select "ProjectName"`: Sets the active project for subsequent session commands (could be an alternative to specifying project in each command).
     - `loganalyzer project update "ProjectName" [--new-name "NewName"] [--description "NewDesc"] [--log-pattern "new/pattern/*.log"]`: Updates project details.
     - `loganalyzer project delete "ProjectName"`: Deletes a project and its associated data after confirmation.
-- **Session Management**:
-    - `loganalyzer session start --project "ProjectName" [--glob "specific_run_logs/*.log"] [--name "SessionName"]`: Starts a new analysis session for the specified project. Uses project's default glob if not provided.
-    - `loganalyzer session list --project "ProjectName"`: Lists all sessions for a project.
-    - `loganalyzer session status <sessionId>`: Shows the status and progress of a specific session.
-    - `loganalyzer session delete <sessionId>`: Deletes a session and its associated analysis data after confirmation.
-- **Analysis & Querying**:
-    - `loganalyzer query --project "ProjectName" --session <sessionId> "[Optional initial natural language query]"`: Initiates an interactive chat session for querying the specified session's data. If an initial query is provided, it's executed immediately. Otherwise, the user is prompted. Results are displayed in the console and appended to a continuously updated DocFX-compatible markdown report (e.g., `reports/ProjectName_SessionID_QueryLog_YYYYMMDDHHMMSS.md`). Type "Exit" to end the session.
-    - `loganalyzer analyze <sessionId>`: (If analysis is decoupled from session start) Triggers the full AI analysis pipeline on an existing session's ingested data.
-- **Reporting**:
-    - `loganalyzer report generate <sessionId> --output-path "reports/ProjectName_Report.md" [--format docfx|markdown]`: Generates a report for a completed session.
+- **Analysis Management**:
+    - `loganalyzer analyze --project "ProjectName" [--glob "specific_run_logs/*.log"] [--name "RunName"]`: Starts a new analysis run for the specified project. Uses project's default glob if not provided.
+    - `loganalyzer list --project "ProjectName"`: Lists all analysis runs for a project.
+    - `loganalyzer status --project "ProjectName" [--run-id <runId>]`: Shows the status and progress of the latest run or a specific run.
+    - `loganalyzer delete --project "ProjectName" --run-id <runId>`: Deletes an analysis run and its associated data after confirmation.
+- **Querying & Reporting**:
+    - `loganalyzer query --project "ProjectName" [--run-id <runId>] "[Optional initial natural language query]"`: Initiates an interactive chat session for querying the specified project's latest run (or specific run if provided). If an initial query is provided, it's executed immediately. Otherwise, the user is prompted. Results are displayed in the console and appended to a continuously updated DocFX-compatible markdown report (e.g., `reports/ProjectName_RunID_QueryLog_YYYYMMDDHHMMSS.md`). Type "Exit" to end the session.
+    - `loganalyzer report --project "ProjectName" [--run-id <runId>] --output-path "reports/ProjectName_Report.md" [--format docfx|markdown]`: Generates a report for a completed analysis run.
 - **General Options**:
     - `--verbose, -v`: Enables verbose output for CLI operations.
     - `--help, -h`: Displays help information for commands and subcommands.
@@ -129,10 +127,9 @@ The CLI will feature a comprehensive set of commands for managing projects, sess
 - **Progress Indication**: For long-running operations (ingestion, AI analysis, report generation), the CLI will display progress indicators (e.g., spinners, progress bars, or percentage completion updates) to provide feedback to the user.
 - **Error Messages**: Errors will be reported clearly, indicating the command that failed and a descriptive message of what went wrong and potential next steps.
 
-#### Configuration Management CLI
-This section is no longer applicable as AI configuration is managed globally and not through user-profiles.
+## Global Application Configuration CLI
 
-## Global Application Configuration
+A setup command will be provided to configure global settings for the LogAnalyzer tool. This command will allow users to set default paths, AI configurations, and other application-wide settings that apply across all projects and sessions.
 
 ### Global Settings
 - **Database Location**: The default path for the SQLite database file (e.g., `~/.loganalyzer/data/loganalysis.db`). This should be configurable via an environment variable or a setting in the global configuration file.
@@ -390,9 +387,9 @@ The modular approach means new log formats or AI patterns can be added with mini
         *   Test normalization functions (timestamp conversion, severity mapping).
         *   Test individual AI pattern prompt generation and response parsing logic using mock AI service responses.
         *   Test CLI command argument parsing and validation.
-        *   Test database interaction logic (CRUD operations for projects, sessions, etc.) with an in-memory SQLite instance.
+        *   Test database interaction logic (CRUD operations for projects, analysis runs, etc.) with an in-memory SQLite instance.
     *   **Integration Tests**:
-        *   Test the full pipeline from CLI command (`loganalyzer session start`) to report generation for a small, controlled set of log files, using a mock AI service that returns predictable responses.
+        *   Test the full pipeline from CLI command (`loganalyzer analyze`) to report generation for a small, controlled set of log files, using a mock AI service that returns predictable responses.
         *   Verify interactions between modules (e.g., Ingestion -> Parsing -> Storage -> AI Analysis -> Reporting).
         *   Test database schema creation and migration, if applicable.
     *   **End-to-End Tests**:
@@ -455,7 +452,7 @@ This implementation maintains all the original functionality while providing a m
 ## Project Management and Data Persistence
 
 ### Project Lifecycle Management
-The application supports a complete project lifecycle from creation to querying:
+The application supports a unified project-based approach where each analysis run is tracked within the project:
 
 #### Project Creation and Configuration
 - **Project Metadata**: Name, description, creation timestamp, and configuration settings
@@ -463,15 +460,16 @@ The application supports a complete project lifecycle from creation to querying:
 - **Project Isolation**: Each project maintains separate data and analysis history
 - **Configuration Inheritance**: Projects inherit global settings but can override them
 
-#### Session Management
-- **Analysis Sessions**: Each log analysis creates a session within a project
-- **Session Metadata**: Track start time, duration, status, and analysis parameters
-- **Session Correlation**: Link log entries, anomalies, and correlations to specific sessions
-- **Historical Tracking**: Compare sessions over time to identify trends and changes
+#### Analysis Run Management
+- **Analysis Runs**: Each log analysis creates a new run within a project
+- **Run Metadata**: Track start time, duration, status, analysis parameters, and run name
+- **Run Correlation**: Link log entries, anomalies, and correlations to specific runs
+- **Historical Tracking**: Compare runs over time to identify trends and changes
+- **Latest Run Access**: Commands default to the latest run when run ID is not specified
 
 #### Data Persistence Strategy
 - **SQLite Database**: Lightweight, file-based database for local storage
-- **Schema Design**: Normalized tables for projects, sessions, log entries, anomalies, correlations
+- **Schema Design**: Normalized tables for projects, analysis runs, log entries, anomalies, correlations
 - **Performance Optimization**: Indexes on commonly queried fields (timestamp, service, project)
 - **Data Integrity**: Foreign key constraints and transaction management
 
@@ -498,7 +496,7 @@ The query engine transforms natural language questions into database operations 
 - Upon invoking `loganalyzer query`, the user enters an interactive chat loop.
 - The user can type natural language queries. The system processes each query through the Intent Analysis Pipeline.
 - **Console Output**: Query results (summaries, tables, textual answers) are displayed directly in the console.
-- **Dynamic Report Generation**: Simultaneously, a Rich Markdown document (DocFX compatible) is created or updated for the interactive session (e.g., `reports/ProjectName_SessionID_QueryLog_YYYYMMDDHHMMSS.md`). Each query and its corresponding rich result (including Mermaid diagrams, data tables, and textual explanations) are appended to this document.
+- **Dynamic Report Generation**: Simultaneously, a Rich Markdown document (DocFX compatible) is created or updated for the interactive session (e.g., `reports/ProjectName_RunID_QueryLog_YYYYMMDDHHMMSS.md`). Each query and its corresponding rich result (including Mermaid diagrams, data tables, and textual explanations) are appended to this document.
     - This report will include appropriate DocFX metadata and will be structured to clearly delineate individual queries and their outputs.
 - **Mermaid and Data Tables**: Where applicable (e.g., queries asking for trends, distributions, or specific data sets), the markdown report will include AI-generated Mermaid diagrams and formatted data tables.
 - **Exiting**: The user can type "Exit" (case-insensitive) at any point to gracefully terminate the interactive chat session. The generated markdown report is finalized and saved.
@@ -519,7 +517,7 @@ The query engine transforms natural language questions into database operations 
 ## Enhanced DocFX Reporting System
 
 This system is responsible for generating comprehensive, well-structured, and visually rich reports in DocFX-compatible markdown format. Reports are generated in two main scenarios:
-1.  By the `loganalyzer report generate <sessionId>` command, producing a full analysis report for a session including any queries the user may have run.
+1.  By the `loganalyzer report --project "ProjectName" [--run-id <runId>]` command, producing a full analysis report for an analysis run including any queries the user may have run.
 2.  Dynamically during an interactive `loganalyzer query` session, where each query and its results are appended to a running markdown document.
 
 ### Rich Markdown Generation
