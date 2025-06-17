@@ -308,6 +308,6 @@ public class OpenAIService
     private float ConvertPenalty(int penalty)
     {
         // OpenAI uses -2 to 2 for penalties
-        return Math.Clamp(penalty, -2f, 2f);
+        return Math.Clamp((float)penalty, -2f, 2f);
     }
 }
