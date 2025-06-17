@@ -1,2 +1,2 @@
 .github/workflows/release.yml
-publish/*
+**/publish/*
