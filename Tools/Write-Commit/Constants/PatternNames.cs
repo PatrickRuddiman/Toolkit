@@ -1,6 +1,6 @@
 namespace WriteCommit.Constants
 {
-    public static class FabricPatterns
+    public static class PatternNames
     {
         /// <summary>
         /// Pattern used for summarizing individual diff chunks
