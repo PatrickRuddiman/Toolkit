@@ -290,7 +290,7 @@ public class OpenAIService
     private float ConvertTemperature(int temperature)
     {
         // OpenAI uses 0-2 for temperature
-        return Math.Clamp(temperature, 0f, 2f);
+        return Math.Clamp(Convert.ToSingle(temperature), 0f, 2f);
     }
 
     /// <summary>
