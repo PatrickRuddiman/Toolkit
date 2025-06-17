@@ -299,7 +299,7 @@ public class OpenAIService
     private float ConvertTopP(int topP)
     {
         // OpenAI uses 0-1 for top-p
-        return Math.Clamp(topP, 0f, 1f);
+        return Math.Clamp((float)topP, 0f, 1f);
     }
 
     /// <summary>
