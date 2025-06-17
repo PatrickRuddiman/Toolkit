@@ -37,18 +37,18 @@ public class PatternService
         {
             var patternName = Path.GetFileName(patternDir);
             var systemFile = Path.Combine(patternDir, "system.md");
-            
+
             if (!File.Exists(systemFile))
             {
                 throw new FileNotFoundException($"Pattern '{patternName}' is missing system.md file");
             }
-            
+
             if (_verbose)
             {
                 Console.WriteLine($"✓ Pattern '{patternName}' is available");
             }
         }
-        
+
         await Task.CompletedTask; // Keep async signature for compatibility
     }
 }

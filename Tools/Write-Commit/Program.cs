@@ -36,7 +36,7 @@ class Program
             () => "gpt-4o-mini",
             "AI model to use (default: gpt-4o-mini)"
         );
-        
+
         var setupOption = new Option<bool>(
             "--setup",
             "Configure OpenAI API key"
@@ -123,11 +123,11 @@ class Program
     )
     {
         var gitService = new GitService();
-        
+
         // Get OpenAI API key
         var configService = new ConfigurationService();
         var apiKey = await configService.GetOpenAiApiKeyAsync();
-        
+
         if (string.IsNullOrEmpty(apiKey))
         {
             throw new InvalidOperationException(
@@ -135,7 +135,7 @@ class Program
                 "or set the OPENAI_API_KEY environment variable."
             );
         }
-        
+
         // Create OpenAI service with the API key
         var openAiService = new OpenAIService(apiKey);
 
@@ -214,7 +214,7 @@ class Program
         // Commit the changes
         await gitService.CommitChangesAsync(commitMessage, verbose);
     }
-    
+
     /// <summary>
     /// Runs the setup process to configure the OpenAI API key
     /// </summary>
@@ -222,7 +222,7 @@ class Program
     {
         var configService = new ConfigurationService();
         bool success = await configService.SetupApiKeyAsync(verbose);
-        
+
         if (success)
         {
             Console.WriteLine();

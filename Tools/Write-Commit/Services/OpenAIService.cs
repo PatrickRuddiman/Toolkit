@@ -16,7 +16,7 @@ public class OpenAIService
         {
             throw new ArgumentNullException(nameof(apiKey), "API key cannot be null or empty");
         }
-        
+
         _apiKey = apiKey;
         _patternsDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "patterns");
     }
@@ -176,7 +176,7 @@ public class OpenAIService
         {
             // Send request to OpenAI
             var response = await chatClient.CompleteChatAsync(messages, options);
-            
+
             if (verbose)
             {
                 Console.WriteLine("Received response from OpenAI API");
@@ -247,7 +247,7 @@ public class OpenAIService
         {
             // Send request to OpenAI
             var response = await chatClient.CompleteChatAsync(messages, options);
-            
+
             if (response.Value != null)
             {
                 return response.Value.Content[0].Text.Trim();
@@ -275,7 +275,7 @@ public class OpenAIService
     private async Task<string> LoadPatternAsync(string patternName)
     {
         var patternPath = Path.Combine(_patternsDirectory, patternName, "system.md");
-        
+
         if (!File.Exists(patternPath))
         {
             throw new FileNotFoundException($"Pattern file not found: {patternPath}");
