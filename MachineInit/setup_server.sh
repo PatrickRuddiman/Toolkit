@@ -24,7 +24,7 @@ sudo systemctl enable docker
 
 # VS Code server (tunnel)
 if ! command -v code >/dev/null; then
-    curl -fsSL "https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64" > /tmp/code.tar.gz
+    curl -fsSL "https://code.visualstudio.com/sha/download?build=stable&os=cli-linux-x64" > /tmp/code.tar.gz
     mkdir -p "$HOME/.vscode-server"
     tar -xzf /tmp/code.tar.gz -C "$HOME/.vscode-server" --strip-components=1
 fi
