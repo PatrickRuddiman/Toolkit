@@ -83,7 +83,7 @@ fi
 WALL_SRC="$(dirname "$0")/../wallpapers"
 if [ -d "$WALL_SRC" ]; then
     mkdir -p "$HOME/Pictures/wallpapers"
-    cp -n "$WALL_SRC"/*.{png,jfif} "$HOME/Pictures/wallpapers" 2>/dev/null || true
+    cp -n "$WALL_SRC"/*.{png,jfif,jpg,jpeg} "$HOME/Pictures/wallpapers" 2>/dev/null || true
 fi
 
 # Configure lightdm for user list at login
