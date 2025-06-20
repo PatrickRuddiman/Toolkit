@@ -13,7 +13,7 @@ run_as_root() {
         sudo "$@"
     else
         # Fall back to su
-        su -c "$*"
+        su -c "$@"
     fi
 }
 
