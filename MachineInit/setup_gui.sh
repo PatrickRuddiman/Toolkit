@@ -152,7 +152,24 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
         if grep -q "GRUB_CMDLINE_LINUX_DEFAULT" /etc/default/grub; then
             # Check if it already has splash and quiet
             if ! grep -q "splash" /etc/default/grub || ! grep -q "quiet" /etc/default/grub; then
+<<<<<<< HEAD
+                # Extract the current value of GRUB_CMDLINE_LINUX_DEFAULT
+                current_value=$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | cut -d'"' -f2)
+                
+                # Ensure 'quiet' and 'splash' are present
+                updated_value="$current_value"
+                if ! echo "$current_value" | grep -qw "quiet"; then
+                    updated_value="quiet $updated_value"
+                fi
+                if ! echo "$current_value" | grep -qw "splash"; then
+                    updated_value="splash $updated_value"
+                fi
+                
+                # Update the GRUB_CMDLINE_LINUX_DEFAULT value
+                sudo sed -i "s/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT=\"$updated_value\"/" /etc/default/grub
+=======
                 sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="[^"]*"/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' /etc/default/grub
+>>>>>>> 2781724a191742bdaf9fa590385a6a3af297886c
             fi
         else
             # Add the line if it doesn't exist
@@ -169,6 +186,24 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
         fi
         
         # Try to detect optimal resolution using hwinfo
+<<<<<<< HEAD
+        OPTIMAL_RES=$(sudo hwinfo --monitor | grep -oP 'Mode:\s+\K[0-9]+x[0-9]+' | sort -nr | head -1)
+        
+        # If we couldn't detect resolution with hwinfo, try with xrandr
+        if [ -z "$OPTIMAL_RES" ] && command -v xrandr >/dev/null 2>&1; then
+            OPTIMAL_RES=$(xrandr | grep -oP 'current\s+\K[0-9]+\s+x\s+[0-9]+')
+        fi
+        
+        # If we still couldn't detect, try with xdpyinfo
+        if [ -z "$OPTIMAL_RES" ]; then
+            if ! command -v xdpyinfo >/dev/null 2>&1; then
+                sudo apt update
+                sudo apt install -y xdpyinfo
+            fi
+            if command -v xdpyinfo >/dev/null 2>&1; then
+                OPTIMAL_RES=$(xdpyinfo | grep -oP 'dimensions:\s+\K[0-9]+x[0-9]+' | awk -Fx '{print $1 " " $2}' | sort -k1,1nr -k2,2nr | awk '{print $1 "x" $2}' | head -1)
+            fi
+=======
         OPTIMAL_RES=$(hwinfo --monitor | grep -oP 'Mode:\s+\K[0-9]+x[0-9]+' | sort -nr | head -1)
         
         # If we couldn't detect resolution with hwinfo, try with xrandr
@@ -179,6 +214,7 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
         # If we still couldn't detect, try with xdpyinfo
         if [ -z "$OPTIMAL_RES" ] && command -v xdpyinfo >/dev/null 2>&1; then
             OPTIMAL_RES=$(xdpyinfo | grep -oP 'dimensions:\s+\K[0-9]+x[0-9]+' | head -1)
+>>>>>>> 2781724a191742bdaf9fa590385a6a3af297886c
         fi
         
         # Fallback to safe resolution if we couldn't detect
@@ -243,7 +279,10 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
         echo "Updating initramfs..."
         sudo update-initramfs -u
     fi
+<<<<<<< HEAD
+=======
     fi
+>>>>>>> 2781724a191742bdaf9fa590385a6a3af297886c
     
     echo "Plymouth configuration completed."
 else
