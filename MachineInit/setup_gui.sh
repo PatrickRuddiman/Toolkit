@@ -396,8 +396,20 @@ fi
 echo "Setting up Conky configuration..."
 mkdir -p "$HOME/.config/conky"
 
-# Create Conky configuration file
-cat > "$HOME/.config/conky/conky.conf" <<'EOC'
+# Get screen resolution to scale Conky appropriately
+SCREEN_HEIGHT=768
+if command -v xrandr >/dev/null 2>&1; then
+    SCREEN_HEIGHT=$(xrandr | grep -oP 'current\s+[0-9]+\s+x\s+\K[0-9]+' || echo 768)
+elif command -v xdpyinfo >/dev/null 2>&1; then
+    SCREEN_HEIGHT=$(xdpyinfo | grep -oP 'dimensions:\s+[0-9]+x\K[0-9]+' || echo 768)
+fi
+
+# Calculate reasonable Conky height (70% of screen height)
+CONKY_HEIGHT=$(( SCREEN_HEIGHT * 70 / 100 ))
+echo "Screen height: $SCREEN_HEIGHT px, Conky height: $CONKY_HEIGHT px"
+
+# Create Conky dark theme configuration file (for light wallpapers)
+cat > "$HOME/.config/conky/conky-dark.conf" <<EOC
 conky.config = {
     alignment = 'top_right',
     background = true,
@@ -408,14 +420,14 @@ conky.config = {
     default_shade_color = 'black',
     double_buffer = true,
     draw_borders = false,
-    draw_graph_borders = false,
+    draw_graph_borders = true,
     draw_outline = false,
     draw_shades = false,
     extra_newline = false,
     font = 'Montserrat:size=10',
     gap_x = 30,
     gap_y = 50,
-    minimum_height = 580,
+    minimum_height = ${CONKY_HEIGHT},
     minimum_width = 320,
     maximum_width = 320,
     net_avg_samples = 2,
@@ -428,9 +440,9 @@ conky.config = {
     own_window_class = 'Conky',
     own_window_transparent = false,
     own_window_argb_visual = true,
-    own_window_argb_value = 200,
+    own_window_argb_value = 180,
     own_window_type = 'desktop',
-    own_window_colour = '2D2D2D',
+    own_window_colour = '202020',
     own_window_hints = 'undecorated,below,sticky,skip_taskbar,skip_pager',
     show_graph_range = false,
     show_graph_scale = false,
@@ -440,77 +452,240 @@ conky.config = {
     use_spacer = 'none',
     use_xft = true,
     
-    color1 = '#E76F51', -- Terracotta
-    color2 = '#F4A261', -- Sandy Brown
-    color3 = '#E9C46A', -- Maize Crayola
-    color4 = '#2A9D8F', -- Persian Green
-    color5 = '#264653', -- Charcoal
-    color6 = '#FAEDCD', -- Eggshell
-    color7 = '#D4A373', -- Tan
+    color1 = '#FF5555', -- Red
+    color2 = '#F8F8F2', -- Light text
+    color3 = '#FFB86C', -- Orange
+    color4 = '#50FA7B', -- Green
+    color5 = '#BD93F9', -- Purple
+    color6 = '#8BE9FD', -- Cyan
+    color7 = '#F1FA8C', -- Yellow
 };
 
 conky.text = [[
 ${alignc}${color6}${font Montserrat:bold:size=28}${time %H:%M}${font}${color}
-${alignc}${color7}${font Montserrat:size=11}${time %A, %B %d, %Y}${font}${color}
+${alignc}${color2}${font Montserrat:size=11}${time %A, %B %d, %Y}${font}${color}
 
-${voffset 10}${color4}${font Montserrat:bold:size=12}SYSTEM${font}${color}
-${voffset 8}${color7}${font Montserrat:light:size=10}${sysname} ${kernel} on ${machine}${font}
-${color7}Uptime: ${uptime}${alignr}Host: ${nodename}${font}
+${voffset 10}${color6}${font Montserrat:bold:size=12}SYSTEM${font}${color}
+${voffset 8}${color2}${font Montserrat:light:size=10}${sysname} ${kernel} on ${machine}${font}
+${color2}Uptime: ${uptime}${alignr}Host: ${nodename}${font}
 
 ${voffset 15}${color1}${hr 2}
 
 ${voffset 10}${color4}${font Montserrat:bold:size=12}PROCESSOR${font}${color}
 ${voffset 5}${color6}${font Montserrat:medium:size=10}CPU: ${cpu cpu0}% ${alignr}${freq_g} GHz${font}
-${color2}${cpubar 5,320}
-${voffset 5}${color6}Core 1: ${color7}${cpu cpu1}% ${alignr}${color3}${cpubar cpu1 5,180}
-${color6}Core 2: ${color7}${cpu cpu2}% ${alignr}${color3}${cpubar cpu2 5,180}
+${color4}${cpubar 5,320}
+${voffset 5}${color2}Core 1: ${color3}${cpu cpu1}% ${alignr}${color7}${cpubar cpu1 5,180}
+${color2}Core 2: ${color3}${cpu cpu2}% ${alignr}${color7}${cpubar cpu2 5,180}
 ${if_existing /sys/devices/system/cpu/cpu3}
-${color6}Core 3: ${color7}${cpu cpu3}% ${alignr}${color3}${cpubar cpu3 5,180}
+${color2}Core 3: ${color3}${cpu cpu3}% ${alignr}${color7}${cpubar cpu3 5,180}
 ${endif}${if_existing /sys/devices/system/cpu/cpu4}
-${color6}Core 4: ${color7}${cpu cpu4}% ${alignr}${color3}${cpubar cpu4 5,180}
+${color2}Core 4: ${color3}${cpu cpu4}% ${alignr}${color7}${cpubar cpu4 5,180}
 ${endif}
 
 ${voffset 10}${color4}${font Montserrat:bold:size=12}MEMORY${font}${color}
 ${voffset 5}${color6}${font Montserrat:medium:size=10}RAM: ${memperc}% ${alignr}${mem} / ${memmax}${font}
-${color2}${membar 5,320}
-${voffset 5}${color6}Swap: ${swapperc}% ${alignr}${swap} / ${swapmax}
-${color2}${swapbar 5,320}
+${color4}${membar 5,320}
+${voffset 5}${color2}Swap: ${swapperc}% ${alignr}${swap} / ${swapmax}
+${color4}${swapbar 5,320}
 
 ${voffset 10}${color1}${hr 2}
 
 ${voffset 10}${color4}${font Montserrat:bold:size=12}STORAGE${font}${color}
-${voffset 5}${color6}Root: ${fs_used_perc /}% ${alignr}${fs_used /} / ${fs_size /}
-${color3}${fs_bar 5,320 /}
-${voffset 5}${color6}Free: ${fs_free /} ${alignr}Used: ${fs_used_perc /}%
+${voffset 5}${color2}Root: ${fs_used_perc /}% ${alignr}${fs_used /} / ${fs_size /}
+${color7}${fs_bar 5,320 /}
+${voffset 5}${color2}Free: ${fs_free /} ${alignr}Used: ${fs_used_perc /}%
 
 ${voffset 10}${color4}${font Montserrat:bold:size=12}PROCESSES${font}${color}
-${voffset 5}${color6}Running: ${running_processes} ${alignr}Total: ${processes}
+${voffset 5}${color2}Running: ${running_processes} ${alignr}Total: ${processes}
 
-${color7}${font Montserrat:medium:size=10}Top CPU${alignr}Usage${font}
-${color6}${top name 1}${alignr}${color2}${top cpu 1}%
-${color6}${top name 2}${alignr}${color2}${top cpu 2}%
-${color6}${top name 3}${alignr}${color2}${top cpu 3}%
+${color6}${font Montserrat:medium:size=10}Top CPU${alignr}Usage${font}
+${color2}${top name 1}${alignr}${color3}${top cpu 1}%
+${color2}${top name 2}${alignr}${color3}${top cpu 2}%
+${color2}${top name 3}${alignr}${color3}${top cpu 3}%
 
-${voffset 5}${color7}${font Montserrat:medium:size=10}Top Memory${alignr}Usage${font}
-${color6}${top_mem name 1}${alignr}${color2}${top_mem mem 1}%
-${color6}${top_mem name 2}${alignr}${color2}${top_mem mem 2}%
-${color6}${top_mem name 3}${alignr}${color2}${top_mem mem 3}%
+${voffset 5}${color6}${font Montserrat:medium:size=10}Top Memory${alignr}Usage${font}
+${color2}${top_mem name 1}${alignr}${color3}${top_mem mem 1}%
+${color2}${top_mem name 2}${alignr}${color3}${top_mem mem 2}%
+${color2}${top_mem name 3}${alignr}${color3}${top_mem mem 3}%
 
 ${voffset 10}${color1}${hr 2}
 
 ${voffset 10}${color4}${font Montserrat:bold:size=12}NETWORK${font}${color}
 ${if_existing /sys/class/net/eth0/operstate up}
 ${voffset 5}${color6}Ethernet: ${alignr}${addr eth0}
-${color7}Down: ${color2}${downspeed eth0}/s ${alignr}${color7}Up: ${color2}${upspeed eth0}/s
-${color4}${downspeedgraph eth0 25,150 264653 2A9D8F} ${alignr}${color1}${upspeedgraph eth0 25,150 264653 E76F51}
+${color2}Down: ${color3}${downspeed eth0}/s ${alignr}${color2}Up: ${color3}${upspeed eth0}/s
+${color4}${downspeedgraph eth0 25,150 50FA7B BD93F9} ${alignr}${color1}${upspeedgraph eth0 25,150 BD93F9 FF5555}
 ${endif}${if_existing /sys/class/net/wlan0/operstate up}
 ${voffset 5}${color6}Wi-Fi: ${wireless_essid wlan0} ${alignr}${addr wlan0}
-${color7}Signal: ${wireless_link_qual_perc wlan0}% ${alignr}${color7}${wireless_bitrate wlan0}
-${color7}Down: ${color2}${downspeed wlan0}/s ${alignr}${color7}Up: ${color2}${upspeed wlan0}/s
-${color4}${downspeedgraph wlan0 25,150 264653 2A9D8F} ${alignr}${color1}${upspeedgraph wlan0 25,150 264653 E76F51}
+${color2}Signal: ${wireless_link_qual_perc wlan0}% ${alignr}${color2}${wireless_bitrate wlan0}
+${color2}Down: ${color3}${downspeed wlan0}/s ${alignr}${color2}Up: ${color3}${upspeed wlan0}/s
+${color4}${downspeedgraph wlan0 25,150 50FA7B BD93F9} ${alignr}${color1}${upspeedgraph wlan0 25,150 BD93F9 FF5555}
 ${endif}
 ]];
 EOC
+
+# Create Conky light theme configuration file (for dark wallpapers)
+cat > "$HOME/.config/conky/conky-light.conf" <<EOC
+conky.config = {
+    alignment = 'top_right',
+    background = true,
+    border_width = 0,
+    cpu_avg_samples = 4,
+    default_color = 'black',
+    default_outline_color = 'grey',
+    default_shade_color = 'black',
+    double_buffer = true,
+    draw_borders = false,
+    draw_graph_borders = true,
+    draw_outline = false,
+    draw_shades = false,
+    extra_newline = false,
+    font = 'Montserrat:size=10',
+    gap_x = 30,
+    gap_y = 50,
+    minimum_height = ${CONKY_HEIGHT},
+    minimum_width = 320,
+    maximum_width = 320,
+    net_avg_samples = 2,
+    no_buffers = true,
+    out_to_console = false,
+    out_to_ncurses = false,
+    out_to_stderr = false,
+    out_to_x = true,
+    own_window = true,
+    own_window_class = 'Conky',
+    own_window_transparent = false,
+    own_window_argb_visual = true,
+    own_window_argb_value = 190,
+    own_window_type = 'desktop',
+    own_window_colour = 'F0F0F0',
+    own_window_hints = 'undecorated,below,sticky,skip_taskbar,skip_pager',
+    show_graph_range = false,
+    show_graph_scale = false,
+    stippled_borders = 0,
+    update_interval = 1.0,
+    uppercase = false,
+    use_spacer = 'none',
+    use_xft = true,
+    
+    color1 = '#E32636', -- Red
+    color2 = '#2E3440', -- Dark text
+    color3 = '#D08770', -- Orange
+    color4 = '#3B7A57', -- Green
+    color5 = '#5D478B', -- Purple
+    color6 = '#1B6AA5', -- Blue
+    color7 = '#AF8D13', -- Gold
+};
+
+conky.text = [[
+${alignc}${color6}${font Montserrat:bold:size=28}${time %H:%M}${font}${color}
+${alignc}${color2}${font Montserrat:size=11}${time %A, %B %d, %Y}${font}${color}
+
+${voffset 10}${color6}${font Montserrat:bold:size=12}SYSTEM${font}${color}
+${voffset 8}${color2}${font Montserrat:light:size=10}${sysname} ${kernel} on ${machine}${font}
+${color2}Uptime: ${uptime}${alignr}Host: ${nodename}${font}
+
+${voffset 15}${color1}${hr 2}
+
+${voffset 10}${color4}${font Montserrat:bold:size=12}PROCESSOR${font}${color}
+${voffset 5}${color6}${font Montserrat:medium:size=10}CPU: ${cpu cpu0}% ${alignr}${freq_g} GHz${font}
+${color4}${cpubar 5,320}
+${voffset 5}${color2}Core 1: ${color3}${cpu cpu1}% ${alignr}${color7}${cpubar cpu1 5,180}
+${color2}Core 2: ${color3}${cpu cpu2}% ${alignr}${color7}${cpubar cpu2 5,180}
+${if_existing /sys/devices/system/cpu/cpu3}
+${color2}Core 3: ${color3}${cpu cpu3}% ${alignr}${color7}${cpubar cpu3 5,180}
+${endif}${if_existing /sys/devices/system/cpu/cpu4}
+${color2}Core 4: ${color3}${cpu cpu4}% ${alignr}${color7}${cpubar cpu4 5,180}
+${endif}
+
+${voffset 10}${color4}${font Montserrat:bold:size=12}MEMORY${font}${color}
+${voffset 5}${color6}${font Montserrat:medium:size=10}RAM: ${memperc}% ${alignr}${mem} / ${memmax}${font}
+${color4}${membar 5,320}
+${voffset 5}${color2}Swap: ${swapperc}% ${alignr}${swap} / ${swapmax}
+${color4}${swapbar 5,320}
+
+${voffset 10}${color1}${hr 2}
+
+${voffset 10}${color4}${font Montserrat:bold:size=12}STORAGE${font}${color}
+${voffset 5}${color2}Root: ${fs_used_perc /}% ${alignr}${fs_used /} / ${fs_size /}
+${color7}${fs_bar 5,320 /}
+${voffset 5}${color2}Free: ${fs_free /} ${alignr}Used: ${fs_used_perc /}%
+
+${voffset 10}${color4}${font Montserrat:bold:size=12}PROCESSES${font}${color}
+${voffset 5}${color2}Running: ${running_processes} ${alignr}Total: ${processes}
+
+${color6}${font Montserrat:medium:size=10}Top CPU${alignr}Usage${font}
+${color2}${top name 1}${alignr}${color3}${top cpu 1}%
+${color2}${top name 2}${alignr}${color3}${top cpu 2}%
+${color2}${top name 3}${alignr}${color3}${top cpu 3}%
+
+${voffset 5}${color6}${font Montserrat:medium:size=10}Top Memory${alignr}Usage${font}
+${color2}${top_mem name 1}${alignr}${color3}${top_mem mem 1}%
+${color2}${top_mem name 2}${alignr}${color3}${top_mem mem 2}%
+${color2}${top_mem name 3}${alignr}${color3}${top_mem mem 3}%
+
+${voffset 10}${color1}${hr 2}
+
+${voffset 10}${color4}${font Montserrat:bold:size=12}NETWORK${font}${color}
+${if_existing /sys/class/net/eth0/operstate up}
+${voffset 5}${color6}Ethernet: ${alignr}${addr eth0}
+${color2}Down: ${color3}${downspeed eth0}/s ${alignr}${color2}Up: ${color3}${upspeed eth0}/s
+${color4}${downspeedgraph eth0 25,150 3B7A57 5D478B} ${alignr}${color1}${upspeedgraph eth0 25,150 5D478B E32636}
+${endif}${if_existing /sys/class/net/wlan0/operstate up}
+${voffset 5}${color6}Wi-Fi: ${wireless_essid wlan0} ${alignr}${addr wlan0}
+${color2}Signal: ${wireless_link_qual_perc wlan0}% ${alignr}${color2}${wireless_bitrate wlan0}
+${color2}Down: ${color3}${downspeed wlan0}/s ${alignr}${color2}Up: ${color3}${upspeed wlan0}/s
+${color4}${downspeedgraph wlan0 25,150 3B7A57 5D478B} ${alignr}${color1}${upspeedgraph wlan0 25,150 5D478B E32636}
+${endif}
+]];
+EOC
+
+# Create a symlink to the current theme (default to dark)
+ln -sf "$HOME/.config/conky/conky-dark.conf" "$HOME/.config/conky/conky.conf"
+
+# Create a script to switch between themes
+cat > "$HOME/.config/conky/switch-theme.sh" <<'EOSH'
+#!/bin/bash
+
+# Get current theme
+CURRENT_THEME=""
+if [ -L "$HOME/.config/conky/conky.conf" ]; then
+    CURRENT_THEME=$(readlink "$HOME/.config/conky/conky.conf")
+fi
+
+# Toggle theme
+if [[ "$CURRENT_THEME" == *"dark"* ]]; then
+    echo "Switching to light theme (for dark wallpapers)..."
+    ln -sf "$HOME/.config/conky/conky-light.conf" "$HOME/.config/conky/conky.conf"
+    NEW_THEME="light"
+else
+    echo "Switching to dark theme (for light wallpapers)..."
+    ln -sf "$HOME/.config/conky/conky-dark.conf" "$HOME/.config/conky/conky.conf"
+    NEW_THEME="dark"
+fi
+
+# Restart Conky if it's running
+pkill conky || true
+sleep 1
+conky -c "$HOME/.config/conky/conky.conf" &
+
+echo "Conky theme switched to $NEW_THEME"
+EOSH
+
+# Make the theme switching script executable
+chmod +x "$HOME/.config/conky/switch-theme.sh"
+
+# Create Desktop entry for theme switching
+cat > "$HOME/.local/share/applications/conky-switch-theme.desktop" <<'EOD'
+[Desktop Entry]
+Type=Application
+Name=Switch Conky Theme
+Comment=Toggle between light and dark Conky themes
+Exec=bash -c '~/.config/conky/switch-theme.sh'
+Icon=conky
+Terminal=false
+Categories=Utility;
+EOD
 
 # Create Conky autostart file
 mkdir -p "$HOME/.config/autostart"
@@ -530,41 +705,33 @@ EOD
 # Replace $USER with the actual username in the autostart file
 sed -i "s/\$USER/$USER/g" "$HOME/.config/autostart/conky.desktop"
 
+# Create a readme file with usage instructions
+cat > "$HOME/.config/conky/README.txt" <<'EOR'
+CONKY THEME INFORMATION
+
+Two themes are included:
+1. Dark Theme - Best for light wallpapers (high contrast with dark background)
+2. Light Theme - Best for dark wallpapers (high contrast with light background)
+
+To switch between themes:
+- Use the "Switch Conky Theme" application in your applications menu
+- Or run: ~/.config/conky/switch-theme.sh from terminal
+
+Both themes are automatically scaled to your screen resolution.
+
+The configuration files are located at:
+- ~/.config/conky/conky-dark.conf
+- ~/.config/conky/conky-light.conf
+
+You can customize these files to your liking.
+EOR
+
 # Restart Conky if it's running
 pkill conky || true
 sleep 1
 conky -c "$HOME/.config/conky/conky.conf" &
 
-# Configure Docker
-if command -v docker >/dev/null 2>&1; then
-    echo "Setting up Docker..."
-    # Enable Docker service
-    if command -v systemctl >/dev/null 2>&1; then
-        sudo systemctl enable docker
-        sudo systemctl start docker || true
-    fi
-    
-    # Check if user is in docker group
-    if ! groups "$USER" | grep -q docker; then
-        echo "Adding user $USER to docker group..."
-        sudo usermod -aG docker "$USER"
-        echo "You will need to log out and log back in for the docker group membership to take effect."
-    fi
-else
-    echo "Docker not installed, skipping Docker setup."
-fi
-
-# Final summary
-echo -e "\n===== Setup Summary ====="
-echo "GUI environment: XFCE"
-echo "Browser: Microsoft Edge"
-echo "Code Editor: VS Code"
-echo "Theme: Chicago95"
-echo "System Monitor: Conky"
-echo "Development Tools: .NET, Python, Node.js"
-echo "Container Support: Docker"
-echo -e "========================\n"
-
-printf '\nSetup complete! A system reboot is recommended to apply all changes.\n'
-printf 'Note: If this is your first time installing sudo or adding yourself to groups,\n'
-printf 'you may need to log out and log back in for all changes to take effect.\n'
+# Inform the user about the Conky themes
+echo "Conky configured with both light and dark themes."
+echo "Use the 'Switch Conky Theme' application or run ~/.config/conky/switch-theme.sh to toggle."
+echo "See ~/.config/conky/README.txt for more information."
