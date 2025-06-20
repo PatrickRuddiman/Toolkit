@@ -43,6 +43,17 @@ fi
 echo "Installing git and curl..."
 sudo_or_su "apt update && apt install -y git curl"
 
+# Clone the repository if it doesn't exist or update if it does
+REPO_DIR="$HOME/Toolkit"
+if [ ! -d "$REPO_DIR" ]; then
+    echo "Cloning repository..."
+    git clone https://github.com/PatrickRuddiman/Toolkit.git "$REPO_DIR"
+elif [ -d "$REPO_DIR/.git" ]; then
+    echo "Repository already exists, updating..."
+    cd "$REPO_DIR" || exit 1
+    git pull
+fi
+
 # Ask user which setup to run
 if $HAS_GUI; then
     echo
@@ -61,4 +72,8 @@ fi
 
 # Run the setup script
 echo "Running $SETUP_TYPE setup..."
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/PatrickRuddiman/Toolkit/main/MachineInit/setup.sh)" -- "$SETUP_TYPE"
+cd "$REPO_DIR/MachineInit" || {
+    echo "Failed to find MachineInit directory in repository"
+    exit 1
+}
+bash "./setup.sh" "$SETUP_TYPE"

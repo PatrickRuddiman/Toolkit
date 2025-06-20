@@ -75,13 +75,28 @@ if [ ! -d "$SCRIPT_DIR/.git" ] && [ ! -d "$SCRIPT_DIR/../.git" ]; then
     echo "Cloning repository..."
     TMP_DIR="$(mktemp -d)"
     cd "$TMP_DIR" || exit 1
-    git clone --depth 1 "$REPO_URL" "$TMP_DIR"
-    cd "$TMP_DIR/MachineInit" || { 
-        cd "$TMP_DIR/Toolkit/MachineInit" || {
-            echo "Failed to find MachineInit directory in cloned repository"
+    
+    # Check if git repository already exists in home directory
+    if [ -d "$HOME/Toolkit" ]; then
+        echo "Repository already exists at $HOME/Toolkit, updating..."
+        cd "$HOME/Toolkit" || exit 1
+        git pull
+        cd "$HOME/Toolkit/MachineInit" || {
+            echo "Failed to find MachineInit directory in existing repository"
             exit 1
         }
-    }
+    else
+        # Clone the repository to temporary directory
+        git clone --depth 1 "$REPO_URL" "$TMP_DIR"
+        cd "$TMP_DIR/MachineInit" || { 
+            cd "$TMP_DIR/Toolkit/MachineInit" || {
+                echo "Failed to find MachineInit directory in cloned repository"
+                exit 1
+            }
+        }
+    fi
+    
+    # Execute the script from the repository
     exec bash "./setup.sh" "$@"
 fi
 

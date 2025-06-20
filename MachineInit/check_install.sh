@@ -137,7 +137,19 @@ if [ "$SUDO_MISSING" = true ]; then
     echo
 fi
 
+# Check if the scripts have been run before
+TOOLKIT_DIR="$HOME/Toolkit"
+if [ -d "$TOOLKIT_DIR" ]; then
+    echo -e "${YELLOW}NOTE: The Toolkit repository already exists at $TOOLKIT_DIR.${NC}"
+    echo "Running the setup scripts again is safe and will update your configuration."
+    echo "Any custom configurations or changes you've made will be preserved where possible."
+    echo
+fi
+
 echo -e "${GREEN}Ready to proceed with setup!${NC}"
-echo "You can run the setup with:"
-echo "  curl -sSL https://raw.githubusercontent.com/PatrickRuddiman/Toolkit/main/MachineInit/quickstart.sh | bash"
+echo "You can run the setup with either of these methods:"
+echo "  1. curl -sSL https://raw.githubusercontent.com/PatrickRuddiman/Toolkit/main/MachineInit/quickstart.sh | bash"
+echo "  2. If you've already run the setup once, you can run it again with:"
+echo "     cd ~/Toolkit/MachineInit && bash setup.sh gui     # For GUI setup"
+echo "     cd ~/Toolkit/MachineInit && bash setup.sh server  # For server setup"
 echo "======================================"
