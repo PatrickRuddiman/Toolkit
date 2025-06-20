@@ -57,20 +57,7 @@ if ! command -v nvm >/dev/null; then
     fi
 fi
 
-# Install dotnet
-if ! command -v dotnet >/dev/null; then
-    echo "Installing .NET..."
-    wget https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh
-    bash /tmp/dotnet-install.sh --channel LTS
-    
-    # Add dotnet to PATH if not already there
-    if ! grep -q "/.dotnet" ~/.bashrc; then
-        echo 'export PATH="$HOME/.dotnet:$PATH"' >> ~/.bashrc
-        echo 'export DOTNET_ROOT="$HOME/.dotnet"' >> ~/.bashrc
-    fi
-else
-    echo ".NET already installed, skipping."
-fi
+# Removed redundant .NET installation block.
 
 # Node.js via nvm for TypeScript
 if ! command -v nvm >/dev/null; then
