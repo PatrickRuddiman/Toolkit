@@ -153,7 +153,20 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
             # Check if it already has splash and quiet
             if ! grep -q "splash" /etc/default/grub || ! grep -q "quiet" /etc/default/grub; then
 <<<<<<< HEAD
-                sudo sed -i '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/\(GRUB_CMDLINE_LINUX_DEFAULT="\)\([^"]*\)\("\)/echo "\1$(echo \2 | grep -qw quiet || echo -n "quiet "; echo \2 | grep -qw splash || echo -n "splash "; echo \2)"\3/e' /etc/default/grub
+                # Extract the current value of GRUB_CMDLINE_LINUX_DEFAULT
+                current_value=$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | cut -d'"' -f2)
+                
+                # Ensure 'quiet' and 'splash' are present
+                updated_value="$current_value"
+                if ! echo "$current_value" | grep -qw "quiet"; then
+                    updated_value="quiet $updated_value"
+                fi
+                if ! echo "$current_value" | grep -qw "splash"; then
+                    updated_value="splash $updated_value"
+                fi
+                
+                # Update the GRUB_CMDLINE_LINUX_DEFAULT value
+                sudo sed -i "s/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT=\"$updated_value\"/" /etc/default/grub
 =======
                 sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="[^"]*"/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' /etc/default/grub
 >>>>>>> 2781724a191742bdaf9fa590385a6a3af297886c
