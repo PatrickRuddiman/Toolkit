@@ -20,6 +20,23 @@ elif ! groups | grep -q sudo && [ "$(id -u)" -ne 0 ]; then
     exit 0
 fi
 
+# Ensure we have sudo
+if ! command -v sudo >/dev/null; then
+    echo "sudo not installed. Installing sudo..."
+    su -c "apt update && apt install -y sudo && usermod -aG sudo $USER"
+    echo "sudo has been installed and $USER added to sudo group."
+    echo "You need to log out and log back in for changes to take effect."
+    echo "After logging back in, run this script again."
+    exit 0
+elif ! groups | grep -q sudo && [ "$(id -u)" -ne 0 ]; then
+    echo "User $USER is not in the sudo group. Adding user to sudo group..."
+    su -c "usermod -aG sudo $USER"
+    echo "User added to sudo group."
+    echo "You need to log out and log back in for changes to take effect."
+    echo "After logging back in, run this script again."
+    exit 0
+fi
+
 # Make sure we have XFCE installed
 if ! dpkg -l | grep -q xfce4; then
     echo "XFCE not detected. Would you like to install it? (y/N)"
