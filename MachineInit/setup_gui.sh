@@ -152,7 +152,7 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
         if grep -q "GRUB_CMDLINE_LINUX_DEFAULT" /etc/default/grub; then
             # Check if it already has splash and quiet
             if ! grep -q "splash" /etc/default/grub || ! grep -q "quiet" /etc/default/grub; then
-                sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="[^"]*"/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' /etc/default/grub
+                sudo sed -i '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/\(GRUB_CMDLINE_LINUX_DEFAULT="\)\([^"]*\)\("\)/echo "\1$(echo \2 | grep -qw quiet || echo -n "quiet "; echo \2 | grep -qw splash || echo -n "splash "; echo \2)"\3/e' /etc/default/grub
             fi
         else
             # Add the line if it doesn't exist
@@ -169,16 +169,22 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
         fi
         
         # Try to detect optimal resolution using hwinfo
-        OPTIMAL_RES=$(hwinfo --monitor | grep -oP 'Mode:\s+\K[0-9]+x[0-9]+' | sort -nr | head -1)
+        OPTIMAL_RES=$(sudo hwinfo --monitor | grep -oP 'Mode:\s+\K[0-9]+x[0-9]+' | sort -nr | head -1)
         
         # If we couldn't detect resolution with hwinfo, try with xrandr
         if [ -z "$OPTIMAL_RES" ] && command -v xrandr >/dev/null 2>&1; then
-            OPTIMAL_RES=$(xrandr | grep -oP 'current\s+\K[0-9]+\s+x\s+[0-9]+' | tr -d ' ' | sed 's/x/x/')
+            OPTIMAL_RES=$(xrandr | grep -oP 'current\s+\K[0-9]+\s+x\s+[0-9]+')
         fi
         
         # If we still couldn't detect, try with xdpyinfo
-        if [ -z "$OPTIMAL_RES" ] && command -v xdpyinfo >/dev/null 2>&1; then
-            OPTIMAL_RES=$(xdpyinfo | grep -oP 'dimensions:\s+\K[0-9]+x[0-9]+' | head -1)
+        if [ -z "$OPTIMAL_RES" ]; then
+            if ! command -v xdpyinfo >/dev/null 2>&1; then
+                sudo apt update
+                sudo apt install -y xdpyinfo
+            fi
+            if command -v xdpyinfo >/dev/null 2>&1; then
+                OPTIMAL_RES=$(xdpyinfo | grep -oP 'dimensions:\s+\K[0-9]+x[0-9]+' | awk -Fx '{print $1 " " $2}' | sort -k1,1nr -k2,2nr | awk '{print $1 "x" $2}' | head -1)
+            fi
         fi
         
         # Fallback to safe resolution if we couldn't detect
@@ -242,7 +248,6 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
     if command -v update-initramfs >/dev/null 2>&1; then
         echo "Updating initramfs..."
         sudo update-initramfs -u
-    fi
     fi
     
     echo "Plymouth configuration completed."
