@@ -3,19 +3,7 @@ set -e
 
 echo "Non-GUI development setup for Debian server environments"
 
-# Define a function to execute commands as root
-run_as_root() {
-    if [ "$(id -u)" -eq 0 ]; then
-        # Already running as root
-        "$@"
-    elif command -v sudo >/dev/null 2>&1; then
-        # Use sudo if available
-        sudo "$@"
-    else
-        # Fall back to su
-        su -c "$@"
-    fi
-}
+# Sudo is required for this script
 
 # Ensure we have sudo
 if ! command -v sudo >/dev/null; then
@@ -35,8 +23,8 @@ elif ! groups | grep -q sudo && [ "$(id -u)" -ne 0 ]; then
 fi
 
 # Install essential packages
-run_as_root apt update
-run_as_root apt install -y git curl apt-transport-https ca-certificates gnupg2 \
+sudo apt update
+sudo apt install -y git curl apt-transport-https ca-certificates gnupg2 \
     software-properties-common build-essential docker.io python3 python3-pip \
     ssh nano vim
 
@@ -44,7 +32,7 @@ run_as_root apt install -y git curl apt-transport-https ca-certificates gnupg2 \
 if ! command -v dotnet >/dev/null; then
     echo "Installing .NET..."
     wget https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh
-    run_as_root bash /tmp/dotnet-install.sh --channel LTS
+    sudo bash /tmp/dotnet-install.sh --channel LTS
     
     # Add dotnet to PATH if not already there
     if ! grep -q ".dotnet" ~/.bashrc; then
@@ -69,11 +57,36 @@ if ! command -v nvm >/dev/null; then
     fi
 fi
 
+# Removed redundant .NET installation block.
+
+# Node.js via nvm for TypeScript
+if ! command -v nvm >/dev/null; then
+    echo "Installing Node Version Manager (nvm)..."
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+    
+    # Source nvm
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    
+    # Install latest LTS version of Node.js
+    nvm install --lts
+    nvm use --lts
+    
+    # Install TypeScript globally
+    npm install -g typescript
+else
+    echo "nvm already installed, checking for updates..."
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    nvm install --lts --reinstall-packages-from=default
+fi
+
 # Docker group for current user
 if getent group docker >/dev/null; then
-    run_as_root usermod -aG docker "$USER"
-    run_as_root systemctl enable docker
-    run_as_root systemctl start docker
+    echo "Adding user to docker group..."
+    sudo usermod -aG docker "$USER"
+    sudo systemctl enable docker
+    sudo systemctl start docker
 else
     echo "Docker group not found. Docker may not be installed correctly."
 fi
@@ -84,13 +97,22 @@ if ! command -v code >/dev/null; then
     curl -fsSL "https://code.visualstudio.com/sha/download?build=stable&os=cli-linux-x64" > /tmp/code.tar.gz
     mkdir -p "$HOME/.vscode-server"
     tar -xzf /tmp/code.tar.gz -C "$HOME/.vscode-server" --strip-components=1
+    rm -f /tmp/code.tar.gz
     
-    # Add VS Code to PATH
-    if [ -d "$HOME/.vscode-server/bin" ]; then
+    # Add VS Code to PATH if not already there
+    if [ -d "$HOME/.vscode-server/bin" ] && ! grep -q "/.vscode-server/bin" ~/.bashrc; then
         echo 'export PATH="$HOME/.vscode-server/bin:$PATH"' >> ~/.bashrc
         export PATH="$HOME/.vscode-server/bin:$PATH"
     fi
+else
+    echo "VS Code server already installed, checking for updates..."
+    code update
 fi
+
+# Create development directories if they don't exist
+echo "Setting up development directories..."
+mkdir -p "$HOME/dev/projects"
+mkdir -p "$HOME/dev/repos"
 
 printf '\nNon-GUI setup complete. You may need to log out and back in for group changes to take effect.\n'
 echo "Run 'source ~/.bashrc' to apply PATH changes to your current session."
