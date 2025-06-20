@@ -39,6 +39,10 @@ sudo apt install -y conky parted gparted git apt-transport-https curl \
     software-properties-common ca-certificates gnupg2 plymouth wget \
     xfce4-terminal xfce4-goodies lightdm
 
+# Make sure all Plymouth dependencies are installed
+echo "Installing Plymouth dependencies..."
+sudo apt install -y plymouth plymouth-themes plymouth-label plymouth-x11 v86d
+
 # Function to safely add GPG key
 add_gpg_key() {
     local key_url=$1
@@ -257,11 +261,20 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
         
         # Make sure Plymouth theme is displayed early
         if ! grep -q "^GRUB_CMDLINE_LINUX=" /etc/default/grub; then
-            echo 'GRUB_CMDLINE_LINUX="plymouth.enable=1"' | sudo tee -a /etc/default/grub
+            echo 'GRUB_CMDLINE_LINUX="plymouth.enable=1 video=uvesafb:mode_option='${OPTIMAL_RES}'-24,mtrr=3,scroll=ywrap"' | sudo tee -a /etc/default/grub
         elif ! grep -q "plymouth.enable=1" /etc/default/grub; then
             # Add plymouth.enable=1 to GRUB_CMDLINE_LINUX if not present
             current_cmdline=$(grep '^GRUB_CMDLINE_LINUX=' /etc/default/grub | cut -d'"' -f2)
+            # Add framebuffer parameters
+            if ! echo "$current_cmdline" | grep -q "video=uvesafb"; then
+                current_cmdline="$current_cmdline video=uvesafb:mode_option=${OPTIMAL_RES}-24,mtrr=3,scroll=ywrap"
+            fi
             sudo sed -i "s|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\"$current_cmdline plymouth.enable=1\"|" /etc/default/grub
+        fi
+        
+        # Enable bootsplash - make sure we load splash early and disable text
+        if ! grep -q "^GRUB_GFXPAYLOAD_LINUX=" /etc/default/grub; then
+            echo 'GRUB_GFXPAYLOAD_LINUX="keep"' | sudo tee -a /etc/default/grub
         fi
         
         # Enable graphical mode for GRUB - detect optimal resolution
@@ -344,33 +357,97 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
                 else
                     sudo sed -i '/^\[Daemon\]/a DeviceTimeout=5' /etc/plymouth/plymouthd.conf
                 fi
+                
+                # Ensure ShowDelay is set to 0 to show theme immediately
+                if grep -q "^ShowDelay" /etc/plymouth/plymouthd.conf; then
+                    sudo sed -i 's/^ShowDelay=.*/ShowDelay=0/' /etc/plymouth/plymouthd.conf
+                else
+                    sudo sed -i '/^\[Daemon\]/a ShowDelay=0' /etc/plymouth/plymouthd.conf
+                fi
             else
                 # If no [Daemon] section, add it with settings
-                echo -e "[Daemon]\nTheme=pixels\nDeviceTimeout=5" | sudo tee /etc/plymouth/plymouthd.conf >/dev/null
+                echo -e "[Daemon]\nTheme=pixels\nDeviceTimeout=5\nShowDelay=0" | sudo tee /etc/plymouth/plymouthd.conf >/dev/null
             fi
         else
             # Create new config file
-            echo -e "[Daemon]\nTheme=pixels\nDeviceTimeout=5" | sudo tee /etc/plymouth/plymouthd.conf >/dev/null
+            echo -e "[Daemon]\nTheme=pixels\nDeviceTimeout=5\nShowDelay=0" | sudo tee /etc/plymouth/plymouthd.conf >/dev/null
         fi
     else
         sudo mkdir -p /etc/plymouth
-        echo -e "[Daemon]\nTheme=pixels\nDeviceTimeout=5" | sudo tee /etc/plymouth/plymouthd.conf >/dev/null
+        echo -e "[Daemon]\nTheme=pixels\nDeviceTimeout=5\nShowDelay=0" | sudo tee /etc/plymouth/plymouthd.conf >/dev/null
     fi
     
     # Apply changes to initramfs
     if command -v update-initramfs >/dev/null 2>&1; then
         echo "Updating initramfs..."
-        # Adding the -k all flag to ensure all kernel versions are updated
-        sudo update-initramfs -u -k all
         
-        # Final check to ensure plymouth is installed in initramfs
+        # Configure /etc/initramfs-tools for Plymouth
+        echo "Configuring Plymouth in initramfs..."
+        
+        # Ensure plymouth is in modules
         if [ -f /etc/initramfs-tools/modules ]; then
             if ! grep -q "^plymouth$" /etc/initramfs-tools/modules; then
                 echo "Adding plymouth to initramfs modules..."
                 echo "plymouth" | sudo tee -a /etc/initramfs-tools/modules >/dev/null
-                sudo update-initramfs -u -k all
+            fi
+            
+            # Make sure framebuffer is enabled
+            if ! grep -q "^uvesafb$" /etc/initramfs-tools/modules; then
+                echo "Adding framebuffer support to initramfs..."
+                echo "uvesafb mode_option=${OPTIMAL_RES}-24 scroll=ywrap" | sudo tee -a /etc/initramfs-tools/modules >/dev/null
             fi
         fi
+        
+        # Configure initramfs hooks and conf files
+        sudo mkdir -p /etc/initramfs-tools/conf.d
+        echo "FRAMEBUFFER=y" | sudo tee /etc/initramfs-tools/conf.d/plymouth >/dev/null
+        
+        # Create script to detect Plymouth and install if missing
+        sudo mkdir -p /etc/initramfs-tools/hooks
+        cat << 'EOF' | sudo tee /etc/initramfs-tools/hooks/plymouth >/dev/null
+#!/bin/sh
+PREREQ=""
+prereqs()
+{
+    echo "$PREREQ"
+}
+
+case $1 in
+    prereqs)
+        prereqs
+        exit 0
+        ;;
+esac
+
+. /usr/share/initramfs-tools/hook-functions
+
+if [ -x /sbin/plymouthd ] && [ -x /bin/plymouth ]; then
+    # Copy files needed by Plymouth
+    copy_exec /sbin/plymouthd /sbin
+    copy_exec /bin/plymouth /bin
+    
+    # Add modules and files
+    manual_add_modules "intel_agp"
+    manual_add_modules "drm"
+    manual_add_modules "uvesafb"
+    
+    # Copy themes
+    mkdir -p ${DESTDIR}/usr/share/plymouth/themes/
+    if [ -d /usr/share/plymouth/themes/pixels ]; then
+        cp -a /usr/share/plymouth/themes/pixels ${DESTDIR}/usr/share/plymouth/themes/
+    fi
+    
+    # Copy Plymouth configuration
+    mkdir -p ${DESTDIR}/etc/plymouth
+    if [ -f /etc/plymouth/plymouthd.conf ]; then
+        cp -a /etc/plymouth/plymouthd.conf ${DESTDIR}/etc/plymouth/
+    fi
+fi
+EOF
+        sudo chmod +x /etc/initramfs-tools/hooks/plymouth
+        
+        # Update all kernels
+        sudo update-initramfs -u -k all
     fi
     
     echo "Plymouth configuration completed."
