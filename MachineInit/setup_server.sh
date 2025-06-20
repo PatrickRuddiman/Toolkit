@@ -19,22 +19,24 @@ run_as_root() {
 
 # Ensure we have sudo
 if ! command -v sudo >/dev/null; then
-    echo "sudo not installed. Would you like to install it? (recommended) (y/N)"
-    read -r response
-    if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        echo "Installing sudo..."
-        run_as_root apt-get update
-        run_as_root apt-get install -y sudo
-        if [ -n "$USER" ]; then
-            run_as_root usermod -aG sudo "$USER"
-            echo "Added $USER to sudo group. You may need to log out and back in."
-        fi
-    fi
+    echo "sudo not installed. Installing sudo..."
+    su -c "apt update && apt install -y sudo && usermod -aG sudo $USER"
+    echo "sudo has been installed and $USER added to sudo group."
+    echo "You need to log out and log back in for changes to take effect."
+    echo "After logging back in, run this script again."
+    exit 0
+elif ! groups | grep -q sudo && [ "$(id -u)" -ne 0 ]; then
+    echo "User $USER is not in the sudo group. Adding user to sudo group..."
+    su -c "usermod -aG sudo $USER"
+    echo "User added to sudo group."
+    echo "You need to log out and log back in for changes to take effect."
+    echo "After logging back in, run this script again."
+    exit 0
 fi
 
 # Install essential packages
-run_as_root apt-get update
-run_as_root apt-get install -y git curl apt-transport-https ca-certificates gnupg2 \
+run_as_root apt update
+run_as_root apt install -y git curl apt-transport-https ca-certificates gnupg2 \
     software-properties-common build-essential docker.io python3 python3-pip \
     ssh nano vim
 
