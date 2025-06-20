@@ -206,17 +206,39 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
                 # Extract the current value of GRUB_CMDLINE_LINUX_DEFAULT
                 current_value=$(grep '^GRUB_CMDLINE_LINUX_DEFAULT=' /etc/default/grub | cut -d'"' -f2)
                 
-                # Ensure 'quiet' and 'splash' are present
-                updated_value="$current_value"
+                # Create a clean updated value
+                updated_value=""
+                # Add quiet if it's not already present
                 if ! echo "$current_value" | grep -qw "quiet"; then
-                    updated_value="quiet $updated_value"
-                fi
-                if ! echo "$current_value" | grep -qw "splash"; then
-                    updated_value="splash $updated_value"
+                    updated_value="$updated_value quiet"
+                else
+                    # Keep existing quiet param
+                    updated_value="$updated_value quiet"
                 fi
                 
-                # Update the GRUB_CMDLINE_LINUX_DEFAULT value
-                sudo sed -i "s/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT=\"$updated_value\"/" /etc/default/grub
+                # Add splash if it's not already present
+                if ! echo "$current_value" | grep -qw "splash"; then
+                    updated_value="$updated_value splash"
+                else
+                    # Keep existing splash param
+                    updated_value="$updated_value splash"
+                fi
+                
+                # Add any other existing parameters that aren't quiet or splash
+                for param in $current_value; do
+                    if [ "$param" != "quiet" ] && [ "$param" != "splash" ]; then
+                        updated_value="$updated_value $param"
+                    fi
+                done
+                
+                # Trim extra spaces
+                updated_value=$(echo "$updated_value" | xargs)
+                
+                # Update the GRUB_CMDLINE_LINUX_DEFAULT value with properly quoted string
+                sudo sed -i "s|^GRUB_CMDLINE_LINUX_DEFAULT=.*|GRUB_CMDLINE_LINUX_DEFAULT=\"$updated_value\"|" /etc/default/grub
+                
+                # Verify the update was successful
+                echo "Updated GRUB_CMDLINE_LINUX_DEFAULT to: \"$updated_value\""
             fi
         else
             # Add the line if it doesn't exist
@@ -262,17 +284,25 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
         # Configure GRUB with the detected resolution
         if grep -q "^#GRUB_GFXMODE=" /etc/default/grub; then
             # Uncomment GRUB_GFXMODE and set to optimal resolution if commented
-            sudo sed -i "s/^#GRUB_GFXMODE=.*/GRUB_GFXMODE=$OPTIMAL_RES/" /etc/default/grub
+            sudo sed -i "s|^#GRUB_GFXMODE=.*|GRUB_GFXMODE=\"$OPTIMAL_RES\"|" /etc/default/grub
         elif grep -q "^GRUB_GFXMODE=" /etc/default/grub; then
             # Update existing GRUB_GFXMODE setting
-            sudo sed -i "s/^GRUB_GFXMODE=.*/GRUB_GFXMODE=$OPTIMAL_RES/" /etc/default/grub
+            sudo sed -i "s|^GRUB_GFXMODE=.*|GRUB_GFXMODE=\"$OPTIMAL_RES\"|" /etc/default/grub
         else
             # Add GRUB_GFXMODE if it doesn't exist
-            echo "GRUB_GFXMODE=$OPTIMAL_RES" | sudo tee -a /etc/default/grub
+            echo "GRUB_GFXMODE=\"$OPTIMAL_RES\"" | sudo tee -a /etc/default/grub
         fi
         
-        # Update GRUB
-        sudo update-grub
+        # Verify GRUB configuration before updating
+        echo "Verifying GRUB configuration..."
+        if ! sudo grep -v "^#" /etc/default/grub | grep -q "x:" && grep -q "GRUB_CMDLINE_LINUX_DEFAULT" /etc/default/grub; then
+            echo "GRUB configuration looks valid, updating GRUB..."
+            # Update GRUB
+            sudo update-grub
+        else
+            echo "WARNING: GRUB configuration may have issues. Skipping update-grub."
+            echo "You may need to manually edit /etc/default/grub and run 'sudo update-grub'"
+        fi
     fi
     
     # Configure Plymouth with standard settings
