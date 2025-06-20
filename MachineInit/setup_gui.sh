@@ -20,23 +20,6 @@ elif ! groups | grep -q sudo && [ "$(id -u)" -ne 0 ]; then
     exit 0
 fi
 
-# Ensure we have sudo
-if ! command -v sudo >/dev/null; then
-    echo "sudo not installed. Installing sudo..."
-    su -c "apt update && apt install -y sudo && usermod -aG sudo $USER"
-    echo "sudo has been installed and $USER added to sudo group."
-    echo "You need to log out and log back in for changes to take effect."
-    echo "After logging back in, run this script again."
-    exit 0
-elif ! groups | grep -q sudo && [ "$(id -u)" -ne 0 ]; then
-    echo "User $USER is not in the sudo group. Adding user to sudo group..."
-    su -c "usermod -aG sudo $USER"
-    echo "User added to sudo group."
-    echo "You need to log out and log back in for changes to take effect."
-    echo "After logging back in, run this script again."
-    exit 0
-fi
-
 # Make sure we have XFCE installed
 if ! dpkg -l | grep -q xfce4; then
     echo "XFCE not detected. Would you like to install it? (y/N)"
@@ -56,15 +39,31 @@ sudo apt install -y conky parted gparted git apt-transport-https curl \
     software-properties-common ca-certificates gnupg2 plymouth wget \
     xfce4-terminal xfce4-goodies lightdm
 
+# Function to safely add GPG key
+add_gpg_key() {
+    local key_url=$1
+    local key_path=$2
+    local repo_name=$3
+    
+    echo "Setting up $repo_name repository..."
+    # Check if key already exists
+    if [ -f "$key_path" ]; then
+        echo "GPG key for $repo_name already exists, skipping key download."
+    else
+        echo "Downloading GPG key for $repo_name..."
+        curl -fsSL "$key_url" | sudo gpg --dearmor -o "$key_path"
+    fi
+}
+
 # Microsoft Edge repository
 if ! grep -q "packages.microsoft.com" /etc/apt/sources.list.d/microsoft-edge.list 2>/dev/null; then
-    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/microsoft.gpg
+    add_gpg_key "https://packages.microsoft.com/keys/microsoft.asc" "/usr/share/keyrings/microsoft.gpg" "Microsoft Edge"
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/edge stable main" | sudo tee /etc/apt/sources.list.d/microsoft-edge.list
 fi
 
 # VS Code repositories
 if ! grep -q "packages.microsoft.com" /etc/apt/sources.list.d/vscode.list 2>/dev/null; then
-    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | sudo gpg --dearmor -o /usr/share/keyrings/vscode.gpg
+    add_gpg_key "https://packages.microsoft.com/keys/microsoft.asc" "/usr/share/keyrings/vscode.gpg" "Visual Studio Code"
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/vscode.gpg] https://packages.microsoft.com/repos/code stable main" | sudo tee /etc/apt/sources.list.d/vscode.list
 fi
 
@@ -72,24 +71,76 @@ sudo apt update
 sudo apt install -y microsoft-edge-stable code code-insiders docker.io git
 
 # Install Dotnet
-wget https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh
-sudo bash /tmp/dotnet-install.sh --channel LTS
+if ! command -v dotnet >/dev/null 2>&1; then
+    echo "Installing .NET..."
+    wget https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh
+    chmod +x /tmp/dotnet-install.sh
+    bash /tmp/dotnet-install.sh --channel LTS
+    
+    # Add dotnet to PATH in .bashrc if not already there
+    if ! grep -q 'export PATH=$PATH:$HOME/.dotnet' "$HOME/.bashrc"; then
+        echo 'export PATH=$PATH:$HOME/.dotnet' >> "$HOME/.bashrc"
+        echo 'export DOTNET_ROOT=$HOME/.dotnet' >> "$HOME/.bashrc"
+    fi
+    echo ".NET installed."
+else
+    echo ".NET already installed, skipping."
+fi
 
 # Install Python and Node (via nvm)
 sudo apt install -y python3 python3-pip
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-nvm install node
+
+# Install Node.js via NVM if not already installed
+if ! command -v nvm >/dev/null 2>&1; then
+    echo "Installing NVM (Node Version Manager)..."
+    export NVM_DIR="$HOME/.nvm"
+    
+    # Check if .nvm directory already exists
+    if [ ! -d "$NVM_DIR" ]; then
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+        
+        # Source NVM
+        [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+        
+        # Install latest LTS version of Node.js
+        nvm install --lts
+        
+        echo "NVM and Node.js LTS installed."
+    else
+        echo "NVM directory exists, sourcing and installing Node.js..."
+        [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+        nvm install --lts
+    fi
+else
+    echo "NVM already installed, skipping."
+fi
 
 # Purge bloatware
 sudo apt purge -y libreoffice* firefox* chromium*
 
-# Enable non-free firmware repository
-if ! grep -q "non-free" /etc/apt/sources.list; then
-    sudo sed -i 's/^deb \(.*\) main$/deb \1 main non-free firmware/' /etc/apt/sources.list
-    sudo apt update
-    sudo apt install -y firmware-linux
+# Enable non-free firmware repository for Debian
+if [ -f /etc/apt/sources.list ]; then
+    echo "Checking for non-free firmware repository..."
+    if ! grep -q "non-free" /etc/apt/sources.list; then
+        echo "Enabling non-free firmware repository..."
+        # Safely modify the sources.list file
+        sudo cp /etc/apt/sources.list /etc/apt/sources.list.bak
+        # Different versions of Debian have different repository names (non-free vs firmware)
+        if grep -q "bookworm\|bullseye" /etc/apt/sources.list; then
+            # Debian 11 (Bullseye) or 12 (Bookworm)
+            sudo sed -i 's/^deb \(.*\) main$/deb \1 main non-free-firmware non-free contrib/' /etc/apt/sources.list
+        else
+            # Older Debian versions
+            sudo sed -i 's/^deb \(.*\) main$/deb \1 main non-free contrib/' /etc/apt/sources.list
+        fi
+        sudo apt update
+        sudo apt install -y firmware-linux
+        echo "Non-free firmware repository enabled."
+    else
+        echo "Non-free firmware repository already enabled, skipping."
+    fi
+else
+    echo "Warning: /etc/apt/sources.list not found, skipping firmware repository configuration."
 fi
 
 # Add current user to sudo and docker groups
@@ -182,7 +233,6 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
         fi
         
         # Try to detect optimal resolution using hwinfo
-<<<<<<< HEAD
         OPTIMAL_RES=$(sudo hwinfo --monitor | grep -oP 'Mode:\s+\K[0-9]+x[0-9]+' | sort -nr | head -1)
         
         # If we couldn't detect resolution with hwinfo, try with xrandr
@@ -199,18 +249,6 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
             if command -v xdpyinfo >/dev/null 2>&1; then
                 OPTIMAL_RES=$(xdpyinfo | grep -oP 'dimensions:\s+\K[0-9]+x[0-9]+' | awk -Fx '{print $1 " " $2}' | sort -k1,1nr -k2,2nr | awk '{print $1 "x" $2}' | head -1)
             fi
-=======
-        OPTIMAL_RES=$(hwinfo --monitor | grep -oP 'Mode:\s+\K[0-9]+x[0-9]+' | sort -nr | head -1)
-        
-        # If we couldn't detect resolution with hwinfo, try with xrandr
-        if [ -z "$OPTIMAL_RES" ] && command -v xrandr >/dev/null 2>&1; then
-            OPTIMAL_RES=$(xrandr | grep -oP 'current\s+\K[0-9]+\s+x\s+[0-9]+' | tr -d ' ' | sed 's/x/x/')
-        fi
-        
-        # If we still couldn't detect, try with xdpyinfo
-        if [ -z "$OPTIMAL_RES" ] && command -v xdpyinfo >/dev/null 2>&1; then
-            OPTIMAL_RES=$(xdpyinfo | grep -oP 'dimensions:\s+\K[0-9]+x[0-9]+' | head -1)
->>>>>>> 2781724a191742bdaf9fa590385a6a3af297886c
         fi
         
         # Fallback to safe resolution if we couldn't detect
@@ -275,10 +313,6 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
         echo "Updating initramfs..."
         sudo update-initramfs -u
     fi
-<<<<<<< HEAD
-=======
-    fi
->>>>>>> 2781724a191742bdaf9fa590385a6a3af297886c
     
     echo "Plymouth configuration completed."
 else
@@ -293,18 +327,29 @@ echo "Setting up wallpapers..."
 mkdir -p "$WALL_DEST"
 
 if [ -d "$WALL_SRC" ]; then
-    # Always refresh wallpapers to get the latest versions
     echo "Copying wallpapers from repository..."
-    cp -f "$WALL_SRC"/*.{png,jfif,jpg,jpeg} "$WALL_DEST" 2>/dev/null || true
+    # Use find to safely copy only image files
+    find "$WALL_SRC" -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" -o -name "*.jfif" \) -exec cp -f {} "$WALL_DEST" \; 2>/dev/null || true
     
-    # Set a random wallpaper
+    # Set a random wallpaper if XFCE is running
     if command -v xfconf-query >/dev/null 2>&1; then
-        RANDOM_WALLPAPER="$(find "$WALL_DEST" -type f | shuf -n 1)"
-        if [ -n "$RANDOM_WALLPAPER" ]; then
-            echo "Setting random wallpaper: $(basename "$RANDOM_WALLPAPER")"
-            xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s "$RANDOM_WALLPAPER" 2>/dev/null || true
+        # Find a random wallpaper from the directory
+        if [ -n "$(ls -A "$WALL_DEST" 2>/dev/null)" ]; then
+            RANDOM_WALLPAPER=$(find "$WALL_DEST" -type f | shuf -n 1)
+            if [ -n "$RANDOM_WALLPAPER" ] && [ -f "$RANDOM_WALLPAPER" ]; then
+                echo "Setting random wallpaper: $(basename "$RANDOM_WALLPAPER")"
+                xfconf-query -c xfce4-desktop -p /backdrop/screen0/monitor0/workspace0/last-image -s "$RANDOM_WALLPAPER" 2>/dev/null || true
+            else
+                echo "No valid wallpapers found."
+            fi
+        else
+            echo "No wallpapers found in $WALL_DEST."
         fi
+    else
+        echo "XFCE not running, skipping wallpaper setting."
     fi
+else
+    echo "Wallpapers directory not found at $WALL_SRC, skipping."
 fi
 
 # Configure lightdm for user list at login
@@ -460,7 +505,36 @@ pkill conky || true
 sleep 1
 conky -c "$HOME/.config/conky/conky.conf" &
 
-sudo systemctl enable docker
+# Configure Docker
+if command -v docker >/dev/null 2>&1; then
+    echo "Setting up Docker..."
+    # Enable Docker service
+    if command -v systemctl >/dev/null 2>&1; then
+        sudo systemctl enable docker
+        sudo systemctl start docker || true
+    fi
+    
+    # Check if user is in docker group
+    if ! groups "$USER" | grep -q docker; then
+        echo "Adding user $USER to docker group..."
+        sudo usermod -aG docker "$USER"
+        echo "You will need to log out and log back in for the docker group membership to take effect."
+    fi
+else
+    echo "Docker not installed, skipping Docker setup."
+fi
 
-printf '\nSetup complete! Reboot recommended.\n'
-printf 'Note: If this is your first time installing sudo, you may need to log out and log back in for sudo access.\n'
+# Final summary
+echo -e "\n===== Setup Summary ====="
+echo "GUI environment: XFCE"
+echo "Browser: Microsoft Edge"
+echo "Code Editor: VS Code"
+echo "Theme: Chicago95"
+echo "System Monitor: Conky"
+echo "Development Tools: .NET, Python, Node.js"
+echo "Container Support: Docker"
+echo -e "========================\n"
+
+printf '\nSetup complete! A system reboot is recommended to apply all changes.\n'
+printf 'Note: If this is your first time installing sudo or adding yourself to groups,\n'
+printf 'you may need to log out and log back in for all changes to take effect.\n'
