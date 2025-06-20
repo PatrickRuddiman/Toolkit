@@ -19,9 +19,9 @@ check_dependencies() {
     if [ ${#missing_deps[@]} -gt 0 ]; then
         echo "Missing required dependencies: ${missing_deps[*]}"
         echo "Installing dependencies..."
-        apt-get update 2>/dev/null || { echo "Please run: sudo apt-get update"; exit 1; }
-        apt-get install -y "${missing_deps[@]}" 2>/dev/null || { 
-            echo "Please run: sudo apt-get install -y ${missing_deps[*]}"; 
+        $SUDO apt-get update 2>/dev/null || { echo "Please run: sudo apt-get update"; exit 1; }
+        $SUDO apt-get install -y "${missing_deps[@]}" 2>/dev/null || { 
+            echo "Please run: $SUDO apt-get install -y ${missing_deps[*]}"; 
             exit 1; 
         }
     fi
