@@ -195,6 +195,16 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
     sudo update-alternatives --set default.plymouth \
         /usr/share/plymouth/themes/pixels/pixels.plymouth
     
+    # Make sure the pixels theme is properly configured
+    echo "Verifying Plymouth theme configuration..."
+    if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
+        # Check if there's a script path set correctly
+        if ! grep -q "ScriptFile=/usr/share/plymouth/themes/pixels/pixels.script" /usr/share/plymouth/themes/pixels/pixels.plymouth; then
+            echo "Fixing script path in pixels theme..."
+            sudo sed -i 's|^ScriptFile=.*|ScriptFile=/usr/share/plymouth/themes/pixels/pixels.script|g' /usr/share/plymouth/themes/pixels/pixels.plymouth
+        fi
+    fi
+    
     echo "Configuring Plymouth..."
     
     # Update GRUB configuration to show Plymouth
@@ -243,6 +253,15 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
         else
             # Add the line if it doesn't exist
             echo 'GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"' | sudo tee -a /etc/default/grub
+        fi
+        
+        # Make sure Plymouth theme is displayed early
+        if ! grep -q "^GRUB_CMDLINE_LINUX=" /etc/default/grub; then
+            echo 'GRUB_CMDLINE_LINUX="plymouth.enable=1"' | sudo tee -a /etc/default/grub
+        elif ! grep -q "plymouth.enable=1" /etc/default/grub; then
+            # Add plymouth.enable=1 to GRUB_CMDLINE_LINUX if not present
+            current_cmdline=$(grep '^GRUB_CMDLINE_LINUX=' /etc/default/grub | cut -d'"' -f2)
+            sudo sed -i "s|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\"$current_cmdline plymouth.enable=1\"|" /etc/default/grub
         fi
         
         # Enable graphical mode for GRUB - detect optimal resolution
@@ -341,7 +360,17 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
     # Apply changes to initramfs
     if command -v update-initramfs >/dev/null 2>&1; then
         echo "Updating initramfs..."
-        sudo update-initramfs -u
+        # Adding the -k all flag to ensure all kernel versions are updated
+        sudo update-initramfs -u -k all
+        
+        # Final check to ensure plymouth is installed in initramfs
+        if [ -f /etc/initramfs-tools/modules ]; then
+            if ! grep -q "^plymouth$" /etc/initramfs-tools/modules; then
+                echo "Adding plymouth to initramfs modules..."
+                echo "plymouth" | sudo tee -a /etc/initramfs-tools/modules >/dev/null
+                sudo update-initramfs -u -k all
+            fi
+        fi
     fi
     
     echo "Plymouth configuration completed."
