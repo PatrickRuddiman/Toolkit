@@ -409,7 +409,7 @@ CONKY_HEIGHT=$(( SCREEN_HEIGHT * 70 / 100 ))
 echo "Screen height: $SCREEN_HEIGHT px, Conky height: $CONKY_HEIGHT px"
 
 # Create Conky dark theme configuration file (for light wallpapers)
-cat > "$HOME/.config/conky/conky-dark.conf" <<EOC
+cat > "$HOME/.config/conky/conky-dark.conf" << 'EOC'
 conky.config = {
     alignment = 'top_right',
     background = true,
@@ -427,7 +427,7 @@ conky.config = {
     font = 'Montserrat:size=10',
     gap_x = 30,
     gap_y = 50,
-    minimum_height = ${CONKY_HEIGHT},
+    minimum_height = CONKY_HEIGHT_VALUE,
     minimum_width = 320,
     maximum_width = 320,
     net_avg_samples = 2,
@@ -524,8 +524,11 @@ ${endif}
 ]];
 EOC
 
+# Replace placeholder with actual height value
+sed -i "s/CONKY_HEIGHT_VALUE/$CONKY_HEIGHT/g" "$HOME/.config/conky/conky-dark.conf"
+
 # Create Conky light theme configuration file (for dark wallpapers)
-cat > "$HOME/.config/conky/conky-light.conf" <<EOC
+cat > "$HOME/.config/conky/conky-light.conf" << 'EOC'
 conky.config = {
     alignment = 'top_right',
     background = true,
@@ -543,7 +546,7 @@ conky.config = {
     font = 'Montserrat:size=10',
     gap_x = 30,
     gap_y = 50,
-    minimum_height = ${CONKY_HEIGHT},
+    minimum_height = CONKY_HEIGHT_VALUE,
     minimum_width = 320,
     maximum_width = 320,
     net_avg_samples = 2,
@@ -640,6 +643,9 @@ ${endif}
 ]];
 EOC
 
+# Replace placeholder with actual height value
+sed -i "s/CONKY_HEIGHT_VALUE/$CONKY_HEIGHT/g" "$HOME/.config/conky/conky-light.conf"
+
 # Create a symlink to the current theme (default to dark)
 ln -sf "$HOME/.config/conky/conky-dark.conf" "$HOME/.config/conky/conky.conf"
 
@@ -689,11 +695,11 @@ EOD
 
 # Create Conky autostart file
 mkdir -p "$HOME/.config/autostart"
-cat > "$HOME/.config/autostart/conky.desktop" <<'EOD'
+cat > "$HOME/.config/autostart/conky.desktop" << 'EOD'
 [Desktop Entry]
 Type=Application
 Name=Conky
-Exec=conky -c /home/$USER/.config/conky/conky.conf
+Exec=conky -c /home/USER_PLACEHOLDER/.config/conky/conky.conf
 StartupNotify=false
 Terminal=false
 Icon=conky
@@ -702,8 +708,8 @@ Categories=System;Monitor;
 X-GNOME-Autostart-enabled=true
 EOD
 
-# Replace $USER with the actual username in the autostart file
-sed -i "s/\$USER/$USER/g" "$HOME/.config/autostart/conky.desktop"
+# Replace placeholders with actual values
+sed -i "s/USER_PLACEHOLDER/$USER/g" "$HOME/.config/autostart/conky.desktop"
 
 # Create a readme file with usage instructions
 cat > "$HOME/.config/conky/README.txt" <<'EOR'
