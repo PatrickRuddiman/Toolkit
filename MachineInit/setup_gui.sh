@@ -41,7 +41,15 @@ sudo apt install -y conky parted gparted git apt-transport-https curl \
 
 # Make sure all Plymouth dependencies are installed
 echo "Installing Plymouth dependencies..."
-sudo apt install -y plymouth plymouth-themes plymouth-label plymouth-x11 v86d
+sudo apt install -y plymouth plymouth-themes plymouth-label plymouth-x11
+
+# Try to install v86d for framebuffer support, but don't fail if not available
+if apt-cache show v86d >/dev/null 2>&1; then
+    sudo apt install -y v86d
+else
+    echo "Package v86d not available in repositories, proceeding without it."
+    echo "Will use alternative framebuffer configuration."
+fi
 
 # Function to safely add GPG key
 add_gpg_key() {
@@ -261,14 +269,25 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
         
         # Make sure Plymouth theme is displayed early
         if ! grep -q "^GRUB_CMDLINE_LINUX=" /etc/default/grub; then
-            echo 'GRUB_CMDLINE_LINUX="plymouth.enable=1 video=uvesafb:mode_option='${OPTIMAL_RES}'-24,mtrr=3,scroll=ywrap"' | sudo tee -a /etc/default/grub
+            # Check which framebuffer module is available and configure accordingly
+            if modinfo uvesafb >/dev/null 2>&1; then
+                echo 'GRUB_CMDLINE_LINUX="plymouth.enable=1 video=uvesafb:mode_option='${OPTIMAL_RES}'-24,mtrr=3,scroll=ywrap"' | sudo tee -a /etc/default/grub
+            else
+                echo 'GRUB_CMDLINE_LINUX="plymouth.enable=1 video=vesafb:ywrap"' | sudo tee -a /etc/default/grub
+            fi
         elif ! grep -q "plymouth.enable=1" /etc/default/grub; then
             # Add plymouth.enable=1 to GRUB_CMDLINE_LINUX if not present
             current_cmdline=$(grep '^GRUB_CMDLINE_LINUX=' /etc/default/grub | cut -d'"' -f2)
-            # Add framebuffer parameters
-            if ! echo "$current_cmdline" | grep -q "video=uvesafb"; then
-                current_cmdline="$current_cmdline video=uvesafb:mode_option=${OPTIMAL_RES}-24,mtrr=3,scroll=ywrap"
+            
+            # Add framebuffer parameters based on available module
+            if ! echo "$current_cmdline" | grep -q "video="; then
+                if modinfo uvesafb >/dev/null 2>&1; then
+                    current_cmdline="$current_cmdline video=uvesafb:mode_option=${OPTIMAL_RES}-24,mtrr=3,scroll=ywrap"
+                else
+                    current_cmdline="$current_cmdline video=vesafb:ywrap"
+                fi
             fi
+            
             sudo sed -i "s|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\"$current_cmdline plymouth.enable=1\"|" /etc/default/grub
         fi
         
@@ -392,9 +411,16 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
             fi
             
             # Make sure framebuffer is enabled
-            if ! grep -q "^uvesafb$" /etc/initramfs-tools/modules; then
-                echo "Adding framebuffer support to initramfs..."
-                echo "uvesafb mode_option=${OPTIMAL_RES}-24 scroll=ywrap" | sudo tee -a /etc/initramfs-tools/modules >/dev/null
+            # First check if uvesafb module is available
+            if modinfo uvesafb >/dev/null 2>&1; then
+                if ! grep -q "^uvesafb$" /etc/initramfs-tools/modules; then
+                    echo "Adding uvesafb framebuffer support to initramfs..."
+                    echo "uvesafb mode_option=${OPTIMAL_RES}-24 scroll=ywrap" | sudo tee -a /etc/initramfs-tools/modules >/dev/null
+                fi
+            # If uvesafb is not available, try vesafb as fallback
+            elif ! grep -q "^vesafb$" /etc/initramfs-tools/modules; then
+                echo "Adding vesafb framebuffer support to initramfs..."
+                echo "vesafb" | sudo tee -a /etc/initramfs-tools/modules >/dev/null
             fi
         fi
         
@@ -429,7 +455,13 @@ if [ -x /sbin/plymouthd ] && [ -x /bin/plymouth ]; then
     # Add modules and files
     manual_add_modules "intel_agp"
     manual_add_modules "drm"
-    manual_add_modules "uvesafb"
+    
+    # Add framebuffer module - try uvesafb first, then vesafb as fallback
+    if modinfo uvesafb >/dev/null 2>&1; then
+        manual_add_modules "uvesafb"
+    else
+        manual_add_modules "vesafb"
+    fi
     
     # Copy themes
     mkdir -p ${DESTDIR}/usr/share/plymouth/themes/
