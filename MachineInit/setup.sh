@@ -19,9 +19,9 @@ check_dependencies() {
     if [ ${#missing_deps[@]} -gt 0 ]; then
         echo "Missing required dependencies: ${missing_deps[*]}"
         echo "Installing dependencies..."
-        apt-get update 2>/dev/null || { echo "Please run: sudo apt-get update"; exit 1; }
-        apt-get install -y "${missing_deps[@]}" 2>/dev/null || { 
-            echo "Please run: sudo apt-get install -y ${missing_deps[*]}"; 
+        apt update 2>/dev/null || { echo "Please run: sudo apt update"; exit 1; }
+        apt install -y "${missing_deps[@]}" 2>/dev/null || { 
+            echo "Please run: sudo apt install -y ${missing_deps[*]}"; 
             exit 1; 
         }
     fi
@@ -43,33 +43,23 @@ check_debian() {
     fi
 }
 
-# If not running as root, try to use sudo or su
+# If not running as root, ensure we have sudo access
 if [ "$(id -u)" -ne 0 ]; then
-    if command -v sudo >/dev/null 2>&1; then
-        SUDO="sudo"
+    if ! command -v sudo >/dev/null 2>&1; then
+        echo "sudo not installed. Installing sudo with root password..."
+        su -c "apt update && apt install -y sudo && usermod -aG sudo $USER"
+        echo "sudo installed. You need to log out and log back in for changes to take effect."
+        echo "After logging back in, run this script again."
+        exit 0
+    elif ! groups | grep -q sudo; then
+        echo "User $USER is not in the sudo group. Adding user to sudo group..."
+        su -c "usermod -aG sudo $USER"
+        echo "User added to sudo group."
+        echo "You need to log out and log back in for changes to take effect."
+        echo "After logging back in, run this script again."
+        exit 0
     else
-        echo "sudo not found. Attempting to use su with root password."
-        echo "Do you want to:"
-        echo "1) Run with su (recommended)"
-        echo "2) Install sudo first"
-        read -r choice
-        
-        case "$choice" in
-            2)
-                echo "Installing sudo with root password..."
-                su -c "apt-get update && apt-get install -y sudo && usermod -aG sudo $USER"
-                echo "sudo installed. You need to log out and log back in for changes to take effect."
-                echo "After logging back in, run this script again."
-                exit 0
-                ;;
-            *)
-                # Create a wrapper function to use su instead of sudo
-                sudo() {
-                    su -c "$*"
-                }
-                SUDO="sudo"
-                ;;
-        esac
+        SUDO="sudo"
     fi
 else
     SUDO=""

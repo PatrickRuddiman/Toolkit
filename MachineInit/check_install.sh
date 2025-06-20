@@ -94,7 +94,7 @@ fi
 # Check for essential commands
 echo -e "\nChecking essential commands:"
 missing_commands=0
-for cmd in apt-get wget curl git; do
+for cmd in apt wget curl git; do
     check_command "$cmd" || missing_commands=$((missing_commands + 1))
 done
 
@@ -117,22 +117,22 @@ if [ $missing_commands -gt 0 ]; then
     if [ "$HAS_ROOT" = true ]; then
         echo "To install missing commands, run:"
         if [ "$SUDO_MISSING" = true ]; then
-            echo "  su -c 'apt-get update && apt-get install -y wget curl git'"
+            echo "  su -c 'apt update && apt install -y wget curl git'"
         else
-            echo "  sudo apt-get update && sudo apt-get install -y wget curl git"
+            echo "  sudo apt update && sudo apt install -y wget curl git"
         fi
     else
         echo "To install missing commands, run as root:"
-        echo "  apt-get update && apt-get install -y wget curl git"
+        echo "  apt update && apt install -y wget curl git"
     fi
     echo
 fi
 
 if [ "$SUDO_MISSING" = true ]; then
     echo -e "${YELLOW}sudo is not installed.${NC}"
-    echo "Our scripts can work without sudo, but installing it is recommended."
+    echo "Our scripts require sudo. Please install it before proceeding."
     echo "To install sudo, run as root:"
-    echo "  apt-get update && apt-get install -y sudo && usermod -aG sudo $USER"
+    echo "  apt update && apt install -y sudo && usermod -aG sudo $USER"
     echo "  (Then log out and log back in)"
     echo
 fi

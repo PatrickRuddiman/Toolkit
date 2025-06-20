@@ -17,13 +17,30 @@ run_as_root() {
     fi
 }
 
+# Ensure we have sudo
+if ! command -v sudo >/dev/null; then
+    echo "sudo not installed. Installing sudo..."
+    su -c "apt update && apt install -y sudo && usermod -aG sudo $USER"
+    echo "sudo has been installed and $USER added to sudo group."
+    echo "You need to log out and log back in for changes to take effect."
+    echo "After logging back in, run this script again."
+    exit 0
+elif ! groups | grep -q sudo && [ "$(id -u)" -ne 0 ]; then
+    echo "User $USER is not in the sudo group. Adding user to sudo group..."
+    su -c "usermod -aG sudo $USER"
+    echo "User added to sudo group."
+    echo "You need to log out and log back in for changes to take effect."
+    echo "After logging back in, run this script again."
+    exit 0
+fi
+
 # Make sure we have XFCE installed
 if ! dpkg -l | grep -q xfce4; then
     echo "XFCE not detected. Would you like to install it? (y/N)"
     read -r response
     if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
-        run_as_root apt-get update
-        run_as_root apt-get install -y task-xfce-desktop
+        run_as_root apt update
+        run_as_root apt install -y task-xfce-desktop
     else
         echo "XFCE is required for this GUI setup. Exiting..."
         exit 1
@@ -31,8 +48,8 @@ if ! dpkg -l | grep -q xfce4; then
 fi
 
 # Install packages
-run_as_root apt-get update
-run_as_root apt-get install -y conky parted gparted git apt-transport-https curl \
+run_as_root apt update
+run_as_root apt install -y conky parted gparted git apt-transport-https curl \
     software-properties-common ca-certificates gnupg2 plymouth wget \
     xfce4-terminal xfce4-goodies lightdm
 
@@ -48,28 +65,28 @@ if ! grep -q "packages.microsoft.com" /etc/apt/sources.list.d/vscode.list 2>/dev
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/vscode.gpg] https://packages.microsoft.com/repos/code stable main" | run_as_root tee /etc/apt/sources.list.d/vscode.list
 fi
 
-run_as_root apt-get update
-run_as_root apt-get install -y microsoft-edge-stable code code-insiders docker.io git
+run_as_root apt update
+run_as_root apt install -y microsoft-edge-stable code code-insiders docker.io git
 
 # Install Dotnet
 wget https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh
 run_as_root bash /tmp/dotnet-install.sh --channel LTS
 
 # Install Python and Node (via nvm)
-run_as_root apt-get install -y python3 python3-pip
+run_as_root apt install -y python3 python3-pip
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 nvm install node
 
 # Purge bloatware
-run_as_root apt-get purge -y libreoffice* firefox* chromium*
+run_as_root apt purge -y libreoffice* firefox* chromium*
 
 # Enable non-free firmware repository
 if ! grep -q "non-free" /etc/apt/sources.list; then
     run_as_root sed -i 's/^deb \(.*\) main$/deb \1 main non-free firmware/' /etc/apt/sources.list
-    run_as_root apt-get update
-    run_as_root apt-get install -y firmware-linux
+    run_as_root apt update
+    run_as_root apt install -y firmware-linux
 fi
 
 # Add current user to sudo and docker groups
