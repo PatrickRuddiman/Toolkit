@@ -148,37 +148,94 @@ if [ -f /usr/share/plymouth/themes/pixels/pixels.plymouth ]; then
     
     # Update GRUB configuration to show Plymouth
     if [ -f /etc/default/grub ]; then
-        # Add or update the GRUB_CMDLINE_LINUX_DEFAULT to include splash, quiet, and plymouth.enable=0
+        # Add or update the GRUB_CMDLINE_LINUX_DEFAULT to include splash and quiet
         if grep -q "GRUB_CMDLINE_LINUX_DEFAULT" /etc/default/grub; then
             # Check if it already has splash and quiet
             if ! grep -q "splash" /etc/default/grub || ! grep -q "quiet" /etc/default/grub; then
-                sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="[^"]*"/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash plymouth.enable=0"/' /etc/default/grub
-            fi
-            
-            # Add plymouth delay parameters if not present
-            if ! grep -q "plymouth.enable=0" /etc/default/grub; then
-                sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="\([^"]*\)"/GRUB_CMDLINE_LINUX_DEFAULT="\1 plymouth.enable=0"/' /etc/default/grub
+                sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="[^"]*"/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' /etc/default/grub
             fi
         else
             # Add the line if it doesn't exist
-            echo 'GRUB_CMDLINE_LINUX_DEFAULT="quiet splash plymouth.enable=0"' | sudo tee -a /etc/default/grub
+            echo 'GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"' | sudo tee -a /etc/default/grub
+        fi
+        
+        # Enable graphical mode for GRUB - detect optimal resolution
+        echo "Detecting optimal display resolution for GRUB..."
+        
+        # Install hwinfo if not already installed
+        if ! command -v hwinfo >/dev/null 2>&1; then
+            sudo apt update
+            sudo apt install -y hwinfo
+        fi
+        
+        # Try to detect optimal resolution using hwinfo
+        OPTIMAL_RES=$(hwinfo --monitor | grep -oP 'Mode:\s+\K[0-9]+x[0-9]+' | sort -nr | head -1)
+        
+        # If we couldn't detect resolution with hwinfo, try with xrandr
+        if [ -z "$OPTIMAL_RES" ] && command -v xrandr >/dev/null 2>&1; then
+            OPTIMAL_RES=$(xrandr | grep -oP 'current\s+\K[0-9]+\s+x\s+[0-9]+' | tr -d ' ' | sed 's/x/x/')
+        fi
+        
+        # If we still couldn't detect, try with xdpyinfo
+        if [ -z "$OPTIMAL_RES" ] && command -v xdpyinfo >/dev/null 2>&1; then
+            OPTIMAL_RES=$(xdpyinfo | grep -oP 'dimensions:\s+\K[0-9]+x[0-9]+' | head -1)
+        fi
+        
+        # Fallback to safe resolution if we couldn't detect
+        if [ -z "$OPTIMAL_RES" ]; then
+            echo "Could not detect display resolution, using safe default 1024x768"
+            OPTIMAL_RES="1024x768"
+        else
+            echo "Detected optimal resolution: $OPTIMAL_RES"
+        fi
+        
+        # Configure GRUB with the detected resolution
+        if grep -q "^#GRUB_GFXMODE=" /etc/default/grub; then
+            # Uncomment GRUB_GFXMODE and set to optimal resolution if commented
+            sudo sed -i "s/^#GRUB_GFXMODE=.*/GRUB_GFXMODE=$OPTIMAL_RES/" /etc/default/grub
+        elif grep -q "^GRUB_GFXMODE=" /etc/default/grub; then
+            # Update existing GRUB_GFXMODE setting
+            sudo sed -i "s/^GRUB_GFXMODE=.*/GRUB_GFXMODE=$OPTIMAL_RES/" /etc/default/grub
+        else
+            # Add GRUB_GFXMODE if it doesn't exist
+            echo "GRUB_GFXMODE=$OPTIMAL_RES" | sudo tee -a /etc/default/grub
         fi
         
         # Update GRUB
         sudo update-grub
     fi
     
-    # Configure Plymouth to show for at least 5 seconds
-    if [ -d /etc/plymouth/plymouthd.conf.d ]; then
-        echo "Creating Plymouth delay configuration..."
-        echo "[Daemon]
-ShowDelay=5
-DeviceTimeout=8" | sudo tee /etc/plymouth/plymouthd.conf.d/delay.conf
+    # Configure Plymouth with standard settings
+    if [ -d /etc/plymouth ]; then
+        echo "Configuring Plymouth with standard settings..."
+        # Modify or create plymouthd.conf 
+        if [ -f /etc/plymouth/plymouthd.conf ]; then
+            # Update existing file
+            if grep -q "^\[Daemon\]" /etc/plymouth/plymouthd.conf; then
+                # If [Daemon] section exists, ensure Theme is set to pixels
+                if grep -q "^Theme" /etc/plymouth/plymouthd.conf; then
+                    sudo sed -i 's/^Theme=.*/Theme=pixels/' /etc/plymouth/plymouthd.conf
+                else
+                    sudo sed -i '/^\[Daemon\]/a Theme=pixels' /etc/plymouth/plymouthd.conf
+                fi
+                
+                # Set DeviceTimeout to default
+                if grep -q "^DeviceTimeout" /etc/plymouth/plymouthd.conf; then
+                    sudo sed -i 's/^DeviceTimeout=.*/DeviceTimeout=5/' /etc/plymouth/plymouthd.conf
+                else
+                    sudo sed -i '/^\[Daemon\]/a DeviceTimeout=5' /etc/plymouth/plymouthd.conf
+                fi
+            else
+                # If no [Daemon] section, add it with settings
+                echo -e "[Daemon]\nTheme=pixels\nDeviceTimeout=5" | sudo tee /etc/plymouth/plymouthd.conf >/dev/null
+            fi
+        else
+            # Create new config file
+            echo -e "[Daemon]\nTheme=pixels\nDeviceTimeout=5" | sudo tee /etc/plymouth/plymouthd.conf >/dev/null
+        fi
     else
-        sudo mkdir -p /etc/plymouth/plymouthd.conf.d
-        echo "[Daemon]
-ShowDelay=5
-DeviceTimeout=8" | sudo tee /etc/plymouth/plymouthd.conf.d/delay.conf
+        sudo mkdir -p /etc/plymouth
+        echo -e "[Daemon]\nTheme=pixels\nDeviceTimeout=5" | sudo tee /etc/plymouth/plymouthd.conf >/dev/null
     fi
     
     # Apply changes to initramfs
@@ -186,8 +243,9 @@ DeviceTimeout=8" | sudo tee /etc/plymouth/plymouthd.conf.d/delay.conf
         echo "Updating initramfs..."
         sudo update-initramfs -u
     fi
+    fi
     
-    echo "Plymouth configuration updated to remain visible longer."
+    echo "Plymouth configuration completed."
 else
     echo "Plymouth theme 'pixels' not found, skipping configuration."
 fi
